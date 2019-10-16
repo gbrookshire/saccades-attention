@@ -3,5 +3,5 @@
     G.Brookshire@bham.ac.uk
 """
 
-from . import main
+import main
 main.run_exp() 
