@@ -20,20 +20,22 @@ import random
 # On Ubuntu, pyglet has to be imported first for psychopy to work
 from sys import platform
 if platform == 'linux':
+    print('Running on the Ubuntu desktop...')
     import pyglet 
 
 #import refcheck # To check the screen refresh rate
 from psychopy import parallel
 from psychopy import visual, core, data, event, monitors
-from . import eye_wrapper
-from . import lattice
+
+import eye_wrapper
+from lattice import lattice
 
 ############
 # Settings #
 ############
 
 # Set to False for testing without triggers, eye-tracker, etc
-_IN_MEG_LAB = True
+_IN_MEG_LAB = False
 
 
 START_TIME = datetime.datetime.now().strftime('%Y-%m-%d-%H%M')
@@ -47,8 +49,15 @@ with open('instruct.txt') as f:
     instruct_text = f.readlines()
 
 TRIGGERS = {'clear': 0,
-            'stim': 3,
-            'response': 5}
+            'fixation': 1,
+            'explore': 3,
+            'mem_test': 3,
+            'response': 4,
+            'drift_correct_start': 10,
+            'drift_correct_end': 11}
+
+KEYS = {'break': 'escape',
+        'accept': 'space'}
 
 COLORS = {'cs': 'rgb255', # ColorSpace
           'white': [255, 255, 255],
@@ -58,8 +67,8 @@ COLORS = {'cs': 'rgb255', # ColorSpace
           'blue': [35, 170, 230]}
 
 SCREEN_RES = [1920, 1080]
-STIM_SIZE = 20 # Size in pixels
-STIM_DIST = 30 # Min distance between images
+STIM_SIZE = 100 # Size in pixels
+STIM_DIST = 150 # Min distance between images
 EXPLORE_DUR = 5.0 # Explore stim screen for X seconds
 N_TRIALS = 3# 300
 
@@ -96,7 +105,7 @@ else:
         return pos
 
     def send_trigger(trig):
-        print(trig)
+        print('Trigger: {}'.format(trig))
 
 
 ######################
@@ -123,24 +132,24 @@ circle_params = {'fillColor': COLORS['white'],
 
 fixation = visual.Circle(radius=10, pos=win_center, **circle_params)
 
-text_stim = visual.TextStim(pos=win_center, # For instructions
-                            color=COLORS['white'], colorSpace=COLORS['cs'],
-                            height=32, **stim_params) 
+# text_stim = visual.TextStim(pos=win_center, text='--', # For instructions
+#                             color=COLORS['white'], colorSpace=COLORS['cs'],
+#                             height=32, **stim_params) 
 
-mem_probe = visual.TextStim(text='?',
-                           bold=True, height=STIM_SIZE*3/4,
-                           color=COLORS['white'],
-                           colorSpace=COLORS['cs'],
-                           **stim_params)
-mem_probe_ring = visual.Circle(radius=STIM_SIZE, **circle_params)
+mem_probe_ring = visual.Circle(radius=STIM_SIZE/2, **circle_params)
+# mem_probe = visual.TextStim(text='?',
+#                            bold=True, height=STIM_SIZE*3/4,
+#                            color=COLORS['white'],
+#                            colorSpace=COLORS['cs'],
+#                            **stim_params)
 
 # eye_marker = visual.Circle(radius=20, pos=win_center, **circle_params)
 # eye_marker.fillColor = COLORS['pink']
 
 n_stimuli = 6
 pic_stims = []
-for n in range(n_pictures):
-    fname = '../stimuli/pic{%d}.jpg'.format(n)
+for n in range(n_stimuli):
+    fname = '../stimuli/{}.jpg'.format(n)
     s = visual.ImageStim(
             image=fname,
             size=STIM_SIZE,
@@ -156,23 +165,22 @@ choice = np.random.choice
 trial_info = []
 for n in range(N_TRIALS):
     d = {}
+    d['fix_dur'] = np.random.uniform(1.0, 2.0)
     d['locs'] = choice(len(stim_locs), size=n_stimuli, replace=False)
     d['mem_target'] = choice(n_stimuli)
-    nontarget_stimuli = [e for e in range(n_stimuli) if e != d['mem_probe_loc'] 
+    nontarget_stimuli = [e for e in range(n_stimuli) if e != d['mem_target']]
     d['mem_distractor'] = choice(nontarget_stimuli)
     d['mem_loc'] = d['locs'][d['mem_target']] 
     d['mem_target_loc'] = choice(['right', 'left'])
+    trial_info.append(d)
 
 trials = data.TrialHandler(trial_info, nReps=1, method='sequential')
+print(trial_info)
 
 
 ##################################
 # Test eye-tracking and updating #
 ##################################
-
-if _IN_MEG_LAB:
-else:
-
 
 def origin_propixx2psychopy(pos):
     """ Convert coordinates for shifting the origin from the
@@ -226,18 +234,18 @@ def drift_correct():
 
 
 def run_trial(trial):
-	send_trigger(TRIGGERS['clear'])
-
+    #send_trigger(TRIGGERS['clear']) 
     # Run the drift correction if necessary
     resps = event.getKeys(KEYS.values())
     if KEYS['accept'] in resps:
         drift_correct()
 
-	# Variable fixation
-	fixation.draw()
+    # Variable fixation
+    fixation.draw()
     win.flip()
     send_trigger(TRIGGERS['fixation'])
     core.wait(trial['fix_dur'])
+    #TODO Wait for fixation
 
     exploration_screen(trial)
     show_mask_stimuli()
@@ -248,7 +256,8 @@ def exploration_screen(trial):
     """ Show all 6 stimuli at their respective locations
     """
     for n in range(len(pic_stims)):
-        pic_stims[n].pos = trial['locs'][n]
+        pos = stim_locs[trial['locs'][n]]
+        pic_stims[n].pos = pos
         pic_stims[n].draw()
     win.flip()
     send_trigger(TRIGGERS['explore'])
@@ -263,11 +272,12 @@ def show_mask_stimuli():
 def show_memory_trial(trial):
     """ Show a probe at one location, and a 2AFC for which stim was there
     """
-    left_pos = [-200, -100]
-    right_pos = [200, -100]
+    left_pos = [-500, -300]
+    right_pos = [500, -300]
 
     # Re-draw the memory probe
-    for s in (mem_probe, mem_probe_ring):
+    #for s in (mem_probe, mem_probe_ring):
+    for s in (mem_probe_ring,):
         s.pos = stim_locs[trial['mem_loc']]
         s.draw()
 
@@ -296,8 +306,6 @@ def show_memory_trial(trial):
 def eye_pos_check():
     """ Check whether the stimulus is following the eye position
     """
-    KEYS = {'break': 'escape',
-            'accept': 'space'}
     event.clearEvents()
     while True:
         # Check for control keypreses
@@ -319,4 +327,5 @@ def eye_pos_check():
 
 
 def run_exp():
-    eye_pos_check()
+    for trial in trials:
+        run_trial(trial)
