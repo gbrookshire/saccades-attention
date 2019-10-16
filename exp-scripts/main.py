@@ -248,7 +248,6 @@ def run_trial(trial):
     #TODO Wait for fixation
 
     exploration_screen(trial)
-    show_mask_stimuli()
     show_memory_trial(trial)
 
 
@@ -263,10 +262,7 @@ def exploration_screen(trial):
     send_trigger(TRIGGERS['explore'])
     core.wait(EXPLORE_DUR)
     win.flip(clearBuffer=True)
-
-
-def show_mask_stimuli():
-    pass
+    core.wait(0.2)
 
 
 def show_memory_trial(trial):
