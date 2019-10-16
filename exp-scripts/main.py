@@ -57,7 +57,9 @@ TRIGGERS = {'clear': 0,
             'drift_correct_end': 11}
 
 KEYS = {'break': 'escape',
-        'accept': 'space'}
+        'accept': 'space',
+        'left': 'left',
+        'right': 'right'}
 
 COLORS = {'cs': 'rgb255', # ColorSpace
           'white': [255, 255, 255],
@@ -91,9 +93,11 @@ if _IN_MEG_LAB:
         return pos
 
     def send_trigger(trig):
-        """ Send triggers to the MEG acquisition computer and the EyeLink computer.
+        """ Send triggers to the MEG acquisition computer
+        and the EyeLink computer.
         """
-        port.setData(trig, 1) #TODO test with setData (as opposed to setPin)
+
+        port.setData(TRIGGERS[trig], 1) #TODO test with setData (as opposed to setPin)
         el.trigger(trig)
 
 else:
@@ -175,7 +179,6 @@ for n in range(N_TRIALS):
     trial_info.append(d)
 
 trials = data.TrialHandler(trial_info, nReps=1, method='sequential')
-print(trial_info)
 
 
 ##################################
@@ -223,32 +226,36 @@ def drift_correct():
     """ Eye-tracker drift correction.
     Press SPACE on the Eyelink machine to accept the current position.
     """
-    send_trigger(TRIGGERS['drift_correct_start'])
+    send_trigger('drift_correct_start')
     # Draw the fixation dot
     fixation.draw()
     win.flip() 
     # Do the drift correction
     fix_pos = np.int64(origin_psychopy2propixx(fixation.pos))
     el.drift_correct(fix_pos)
-    send_trigger(TRIGGERS['drift_correct_end'])
+    send_trigger('drift_correct_end')
 
 
 def run_trial(trial):
-    #send_trigger(TRIGGERS['clear']) 
+    send_trigger('clear') 
     # Run the drift correction if necessary
-    resps = event.getKeys(KEYS.values())
-    if KEYS['accept'] in resps:
+    r = event.getKeys(KEYS.values())
+    if KEYS['accept'] in r:
         drift_correct()
 
     # Variable fixation
     fixation.draw()
     win.flip()
-    send_trigger(TRIGGERS['fixation'])
+    send_trigger('fixation')
     core.wait(trial['fix_dur'])
     #TODO Wait for fixation
 
     exploration_screen(trial)
     show_memory_trial(trial)
+    
+    # Save the data
+    trials.saveAsWideText('{}/{}.csv'.format(LOG_DIR, START_TIME),
+                          delim=',', fileCollisionMethod='rename')
 
 
 def exploration_screen(trial):
@@ -259,7 +266,7 @@ def exploration_screen(trial):
         pic_stims[n].pos = pos
         pic_stims[n].draw()
     win.flip()
-    send_trigger(TRIGGERS['explore'])
+    send_trigger('explore')
     core.wait(EXPLORE_DUR)
     win.flip(clearBuffer=True)
     core.wait(0.2)
@@ -292,11 +299,18 @@ def show_memory_trial(trial):
     dist_stim.draw()
 
     win.flip()
-    send_trigger(TRIGGERS['mem_test'])
+    send_trigger('mem_test')
+    RT_CLOCK.reset()
     
     # Wait for a key press
-    r = event.waitKeys() #FIXME
-    send_trigger(TRIGGERS['response'])
+    event.clearEvents()
+    r = event.waitKeys(maxWait=2.0,
+                       keyList=[KEYS['left'], KEYS['right']],
+                       timeStamped=RT_CLOCK) 
+    send_trigger('response')
+    #TODO Test response logging
+    trials.addData('resp', r[0][0])
+    trials.addData('rt', r[0][1])
 
 
 def eye_pos_check():
@@ -305,10 +319,10 @@ def eye_pos_check():
     event.clearEvents()
     while True:
         # Check for control keypreses
-        resps = event.getKeys(KEYS.values())
-        if KEYS['break'] in resps:
+        r = event.getKeys(KEYS.values())
+        if KEYS['break'] in r:
             break
-        elif KEYS['accept'] in resps:
+        elif KEYS['accept'] in r:
             drift_correct()
 
         pos = eye_pos()
