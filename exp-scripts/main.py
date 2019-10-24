@@ -2,33 +2,46 @@
 Attention and preprocessing before a saccade
 Fall 2019
 G.Brookshire@bham.ac.uk
+
+Design
+- Show the same 6 stimuli in random locations on every trial
+- At the end of each trial, probe memory
+    - Ask which of 2 stimuli was present at a marked location
+
 """
 
 # TODO
-# - Show 6 stimuli over and over (and over (and over))
-# - What memory test?
-#   - Change 2 items at a time, per screen update?
-#   - Perceptual manipulation of images? (e.g. blank out an eye in photoshop)
-#   - Location test?
-#   - Multiple items with a familiarity test?
+"""
+- Make sure stimuli are the right size
+- Don't start trial until participants fixate
+- Give a break every few minutes
+- Go through all TODO and FIXME tags
+- Get a couple behavioral pilots
+- MEG pilot: Test whether stimuli are discriminable using classifiers
+"""
 
+
+# On Ubuntu, pyglet has to be imported first for psychopy to work
+# from sys import platform
+# if platform == 'linux':
+#     print('Running on the Ubuntu desktop...')
+#     import pyglet 
+
+# Standard libraries
 import os
 import datetime
 import numpy as np
-import random
+import random 
 
-# On Ubuntu, pyglet has to be imported first for psychopy to work
-from sys import platform
-if platform == 'linux':
-    print('Running on the Ubuntu desktop...')
-    import pyglet 
-
-#import refcheck # To check the screen refresh rate
+# Psychopy
 from psychopy import parallel
 from psychopy import visual, core, data, event, monitors
 
+# Custom modules
+import refcheck 
 import eye_wrapper
 from lattice import lattice
+
 
 ############
 # Settings #
@@ -41,13 +54,6 @@ _IN_MEG_LAB = False
 START_TIME = datetime.datetime.now().strftime('%Y-%m-%d-%H%M')
 RT_CLOCK = core.Clock() # for measuring response times 
 
-LOG_DIR = '../logfiles/'
-assert os.path.exists(LOG_DIR)
-
-# Load instructions
-with open('instruct.txt') as f:
-    instruct_text = f.readlines()
-
 TRIGGERS = {'clear': 0,
             'fixation': 1,
             'explore': 3,
@@ -57,6 +63,7 @@ TRIGGERS = {'clear': 0,
             'drift_correct_end': 11}
 
 KEYS = {'break': 'escape',
+        'drift': 'enter',
         'accept': 'space',
         'left': 'left',
         'right': 'right'}
@@ -68,13 +75,23 @@ COLORS = {'cs': 'rgb255', # ColorSpace
           'pink': [225, 10, 130],
           'blue': [35, 170, 230]}
 
-SCREEN_RES = [1920, 1080]
-STIM_SIZE = 100 # Size in pixels
-STIM_DIST = 150 # Min distance between images
+SCREEN_RES = [1920, 1080] # Full res on the  Propixx projector
+STIM_SIZE = 100 # Size in pixels TODO Check this in degrees
+STIM_DIST = 150 # Min distance between images TODO Check this in degrees
 EXPLORE_DUR = 5.0 # Explore stim screen for X seconds
-N_TRIALS = 3# 300
+RESPONSE_CUTOFF = 5.0 # Respond within this time
+N_TRIALS = 2# 300
 
-# Initialize externals
+END_EXPERIMENT = 9999
+
+LOG_DIR = '../logfiles/'
+assert os.path.exists(LOG_DIR)
+
+# Load instructions
+with open('instruct.txt') as f:
+    instruct_text = f.readlines()
+
+# Initialize external equipment
 if _IN_MEG_LAB:
     refresh_rate = 120.0
     # Initialize parallel port
@@ -97,7 +114,7 @@ if _IN_MEG_LAB:
         and the EyeLink computer.
         """
 
-        port.setData(TRIGGERS[trig], 1) #TODO test with setData (as opposed to setPin)
+        port.setData(TRIGGERS[trig], 1) #TODO test with setData (vs setPin)
         el.trigger(trig)
 
 else:
@@ -116,7 +133,6 @@ else:
 # Window and Stimuli #
 ######################
 
-# win_size = (800, 800) # Pixels
 win_size = SCREEN_RES
 win_center = (0, 0)
 
@@ -136,9 +152,10 @@ circle_params = {'fillColor': COLORS['white'],
 
 fixation = visual.Circle(radius=10, pos=win_center, **circle_params)
 
-# text_stim = visual.TextStim(pos=win_center, text='--', # For instructions
-#                             color=COLORS['white'], colorSpace=COLORS['cs'],
-#                             height=32, **stim_params) 
+text_stim = visual.TextStim(pos=win_center, text='hello', # For instructions
+                            color=COLORS['white'], colorSpace=COLORS['cs'],
+                            height=32,
+                            **stim_params)
 
 mem_probe_ring = visual.Circle(radius=STIM_SIZE/2, **circle_params)
 # mem_probe = visual.TextStim(text='?',
@@ -153,7 +170,7 @@ mem_probe_ring = visual.Circle(radius=STIM_SIZE/2, **circle_params)
 n_stimuli = 6
 pic_stims = []
 for n in range(n_stimuli):
-    fname = '../stimuli/{}.jpg'.format(n)
+    fname = '../stimuli/cropped/{}.jpg'.format(n)
     s = visual.ImageStim(
             image=fname,
             size=STIM_SIZE,
@@ -170,11 +187,17 @@ trial_info = []
 for n in range(N_TRIALS):
     d = {}
     d['fix_dur'] = np.random.uniform(1.0, 2.0)
-    d['locs'] = choice(len(stim_locs), size=n_stimuli, replace=False)
+    stim_locations = choice(len(stim_locs), size=n_stimuli, replace=False)
+    for i_stim in range(n_stimuli):
+        tag = 'loc_{}'.format(i_stim)
+        d[tag] = stim_locations[i_stim]
+    #d['locs'] = choice(len(stim_locs), size=n_stimuli, replace=False)
     d['mem_target'] = choice(n_stimuli)
     nontarget_stimuli = [e for e in range(n_stimuli) if e != d['mem_target']]
     d['mem_distractor'] = choice(nontarget_stimuli)
-    d['mem_loc'] = d['locs'][d['mem_target']] 
+    #d['mem_loc'] = d['locs'][d['mem_target']] 
+    mem_loc_tag = 'loc_{}'.format(d['mem_target'])
+    d['mem_loc'] = d[mem_loc_tag]
     d['mem_target_loc'] = choice(['right', 'left'])
     trial_info.append(d)
 
@@ -208,7 +231,7 @@ def origin_psychopy2propixx(pos):
 def show_text(text):
     """ Show text at the center of the screen.
     """
-    text_stim.set('text', text)
+    text_stim.text = text
     text_stim.draw()
     win.flip()
 
@@ -238,38 +261,44 @@ def drift_correct():
 
 def run_trial(trial):
     send_trigger('clear') 
-    # Run the drift correction if necessary
-    r = event.getKeys(KEYS.values())
-    if KEYS['accept'] in r:
-        drift_correct()
 
-    # Variable fixation
+    # Check for an escape key to pause/exit the experiment or correct drift
+    r = event.getKeys(KEYS.values())
+    if KEYS['break'] in r:
+        show_text('End experiment? (y/n)')
+        core.wait(1.0)
+        event.clearEvents()
+        r = event.waitKeys(keyList=['y', 'n'])
+        if 'y' in r:
+            return END_EXPERIMENT
+    elif KEYS['drift'] in r:
+        drift_correct() 
+
+    # Wait for fixation
     fixation.draw()
     win.flip()
     send_trigger('fixation')
     core.wait(trial['fix_dur'])
     #TODO Wait for fixation
 
+    # Present the trial
     exploration_screen(trial)
     show_memory_trial(trial)
     
-    # Save the data
-    trials.saveAsWideText('{}/{}.csv'.format(LOG_DIR, START_TIME),
-                          delim=',', fileCollisionMethod='rename')
-
 
 def exploration_screen(trial):
     """ Show all 6 stimuli at their respective locations
     """
     for n in range(len(pic_stims)):
-        pos = stim_locs[trial['locs'][n]]
+        #pos = stim_locs[trial['locs'][n]]
+        pos = stim_locs[trial['loc_{}'.format(n)]]
         pic_stims[n].pos = pos
         pic_stims[n].draw()
     win.flip()
     send_trigger('explore')
     core.wait(EXPLORE_DUR)
     win.flip(clearBuffer=True)
-    core.wait(0.2)
+    core.wait(0.2) 
 
 
 def show_memory_trial(trial):
@@ -304,13 +333,16 @@ def show_memory_trial(trial):
     
     # Wait for a key press
     event.clearEvents()
-    r = event.waitKeys(maxWait=2.0,
+    r = event.waitKeys(maxWait=RESPONSE_CUTOFF,
                        keyList=[KEYS['left'], KEYS['right']],
                        timeStamped=RT_CLOCK) 
-    send_trigger('response')
-    #TODO Test response logging
-    trials.addData('resp', r[0][0])
-    trials.addData('rt', r[0][1])
+    if r is None:
+        show_text('Too slow -- try to respond quickly!')
+        core.wait(2)
+    else:
+        send_trigger('response') 
+        trials.addData('resp', r[0][0]) #TODO Test response logging 
+        trials.addData('rt', r[0][1])
 
 
 def eye_pos_check():
@@ -337,5 +369,25 @@ def eye_pos_check():
 
 
 def run_exp():
+    refcheck.check_refresh_rate(win, refresh_rate)
+
+    # Run the trials
     for trial in trials:
-        run_trial(trial)
+        o = run_trial(trial)
+        if o == END_EXPERIMENT:
+            break
+
+    # Save the data
+    fname = '{}/{}.csv'.format(LOG_DIR, START_TIME)
+    trials.saveAsWideText(fname, encoding='ASCII',
+                          delim=',', fileCollisionMethod='rename')
+
+    show_text('That was it -- thanks!')
+    event.waitKeys(keyList=['escape'])
+
+    # Close everything down
+    win.close()
+    if _IN_MEG_LAB:
+        el.shutdown()
+    core.quit()
+
