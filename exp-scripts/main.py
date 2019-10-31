@@ -6,28 +6,26 @@ G.Brookshire@bham.ac.uk
 Design
 - Show the same 6 stimuli in random locations on every trial
 - At the end of each trial, probe memory
-    - Ask which of 2 stimuli was present at a marked location
-
+    - Ask which of 2 stimuli was present at a marked location 
 """
 
 # TODO
 """
+Things to check
+- Make sure triggers do not overlap
 - Check stimulus size
 - Give a break every few minutes
 - Go through all TODO and FIXME tags
+- Gaze-contingent trials
+- Can we do drift correction during fixation (in case fix isn't working?)
 
 Tests
-- Gaze-contingent trials
 - Get a couple behavioral pilots
+    - Is the task too hard?
+    - Do people actually look at all the items?
+        - Do we need to add a perceptual task
 - MEG pilot: Test whether stimuli are discriminable using classifiers
 """
-
-
-# On Ubuntu, pyglet has to be imported first for psychopy to work
-# from sys import platform
-# if platform == 'linux':
-#     print('Running on the Ubuntu desktop...')
-#     import pyglet 
 
 # Standard libraries
 import os
@@ -51,7 +49,7 @@ from lattice import lattice
 ############
 
 # Set to False for testing without triggers, eye-tracker, etc
-_IN_MEG_LAB = False
+IN_MEG_LAB = False
 
 
 START_TIME = datetime.datetime.now().strftime('%Y-%m-%d-%H%M')
@@ -67,8 +65,8 @@ TRIGGERS = {'fixation': 1,
 KEYS = {'break': 'escape',
         'drift': 'enter',
         'accept': 'space',
-        'left': 'left',
-        'right': 'right'}
+        'left': '4', #'left',
+        'right': '7'} #'right'}
 
 COLORS = {'cs': 'rgb255', # ColorSpace
           'white': [255, 255, 255],
@@ -77,13 +75,13 @@ COLORS = {'cs': 'rgb255', # ColorSpace
           'pink': [225, 10, 130],
           'blue': [35, 170, 230]}
 
-SCREEN_RES = [1920, 1080] # Full res on the  Propixx projector
-#STIM_SIZE = int(dc.deg2pix(1.0)) # Size in pixels TODO Check this
-#STIM_DIST = int(dc.deg2pix(1.5)) # Min distance between images TODO Check this
-STIM_SIZE = 100
-STIM_DIST = 150
-#print(STIM_DIST)
-#import sys; sys.exit() 
+FULL_SCREEN = True
+STIM_SIZE = int(dc.deg2pix(2.0)) # Size in pixels TODO Check this
+STIM_DIST = int(dc.deg2pix(3.0)) # Min distance between images TODO Check this
+if FULL_SCREEN: 
+    SCREEN_RES = [1920, 1080] # Full res on the Propixx projector
+else: 
+    SCREEN_RES = [1000, 1000]
 
 EXPLORE_DUR = 5.0 # Explore stim screen for X seconds
 RESPONSE_CUTOFF = 5.0 # Respond within this time
@@ -91,7 +89,7 @@ FIX_DUR = 1.0 # Hold fixation for X seconds before starting trial
 FIX_THRESH = 100 # Subject must fixate w/in this distance to start trial (pix)
 N_TRIALS = 300
 
-END_EXPERIMENT = 9999
+END_EXPERIMENT = 9999 # Numeric tag signals stopping expt early
 
 LOG_DIR = '../logfiles/'
 assert os.path.exists(LOG_DIR)
@@ -101,7 +99,7 @@ with open('instruct.txt') as f:
     instruct_text = f.readlines()
 
 # Initialize external equipment
-if _IN_MEG_LAB:
+if IN_MEG_LAB:
     refresh_rate = 120.0
     # Initialize parallel port
     port = parallel.ParallelPort(address=0xBFF8)
@@ -139,7 +137,6 @@ else:
     el = eye_wrapper.DummyEyelink()
 
     def eye_pos():
-        #pos = eye_marker.pos + np.random.randint(-2, 3, size=2)
         pos = win_center
         return pos
 
@@ -159,7 +156,7 @@ win_center = (0, 0)
 
 win = visual.Window(win_size,
                     monitor='MEG_LAB_MONITOR', ## FIXME
-                    fullscr=False,
+                    fullscr=FULL_SCREEN,
                     color=COLORS['grey'], colorSpace=COLORS['cs'],
                     allowGUI=False)
 
@@ -180,8 +177,8 @@ text_stim = visual.TextStim(pos=win_center, text='hello', # For instructions
 
 mem_probe = visual.Circle(radius=STIM_SIZE/3, **circle_params)
 
-# eye_marker = visual.Circle(radius=20, pos=win_center, **circle_params)
-# eye_marker.fillColor = COLORS['pink']
+#eye_marker = visual.Circle(radius=20, pos=win_center, **circle_params)
+#eye_marker.fillColor = COLORS['pink']
 
 n_stimuli = 6
 pic_stims = []
@@ -206,11 +203,9 @@ for n in range(N_TRIALS):
     for i_stim in range(n_stimuli):
         tag = 'loc_{}'.format(i_stim)
         d[tag] = stim_locations[i_stim]
-    #d['locs'] = choice(len(stim_locs), size=n_stimuli, replace=False)
     d['mem_target'] = choice(n_stimuli)
     nontarget_stimuli = [e for e in range(n_stimuli) if e != d['mem_target']]
     d['mem_distractor'] = choice(nontarget_stimuli)
-    #d['mem_loc'] = d['locs'][d['mem_target']] 
     mem_loc_tag = 'loc_{}'.format(d['mem_target'])
     d['mem_loc'] = d[mem_loc_tag]
     d['mem_target_loc'] = choice(['right', 'left'])
@@ -221,14 +216,28 @@ trials = data.TrialHandler(trial_info, nReps=1, method='sequential')
 
 ##################################
 # Test eye-tracking and updating #
-##################################
-
+################################## 
 
 def euc_dist(a, b):
     """ Euclidean distance between two (x,y) pairs
     """
     d = sum([(x1 - x2)**2 for x1,x2 in zip(a, b)]) ** (1/2)
     return d
+
+
+def show_lattice():
+    """ Show all the positions of the lattice for testing the size
+    """
+    lattice_stims = []
+    for p in stim_locs: 
+        s = visual.Circle(radius=STIM_SIZE/2, pos=p, **circle_params)
+        lattice_stims.append(s)
+    for s in lattice_stims:
+        s.draw()
+    win.flip()
+    event.waitKeys(keyList=['escape'])
+
+#show_lattice()
 
 
 def show_text(text):
@@ -299,7 +308,7 @@ def run_trial(trial):
         # If they are looking at the timer, have they looked long enough?
         elif (core.monotonicClock.getTime() - t_fix) > FIX_DUR:
             break 
-        # If they are looking, but haven't held it long enough 
+        # If they are looking, but haven't held fixation long enough 
         else:
             fixation.draw()
             win.flip()
@@ -329,8 +338,8 @@ def exploration_screen(trial):
 def show_memory_trial(trial):
     """ Show a probe at one location, and a 2AFC for which stim was there
     """
-    left_pos = [-500, -300]
-    right_pos = [500, -300]
+    left_pos = [-700, -450]
+    right_pos = [700, -450]
 
     # Re-draw the memory probe
     mem_probe.pos = stim_locs[trial['mem_loc']]
@@ -366,7 +375,7 @@ def show_memory_trial(trial):
     else:
         send_trigger('response') 
         reset_port()
-        trials.addData('resp', r[0][0]) #TODO Test response logging 
+        trials.addData('resp', r[0][0])
         trials.addData('rt', r[0][1])
 
 
@@ -396,6 +405,10 @@ def show_memory_trial(trial):
 def run_exp():
     refcheck.check_refresh_rate(win, refresh_rate)
 
+    # Instructions
+    for line in instruct_text:
+        instructions(line)
+
     # Run the trials
     for trial in trials:
         status = run_trial(trial)
@@ -412,7 +425,7 @@ def run_exp():
 
     # Close everything down
     win.close()
-    if _IN_MEG_LAB:
+    if IN_MEG_LAB:
         el.shutdown()
     core.quit()
 
