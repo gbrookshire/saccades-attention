@@ -1,2 +1,5 @@
-Hi
-How are you?
+In this study, you'll see a few images appear together on the screen for about 5 seconds.
+Your job is to memorize the positions of the dots.
+Then the images will disappear and a dot will appear somewhere on the screen.
+Your job is to choose which image was at the position of the dot.
+Press the button on the side with the correct image.
