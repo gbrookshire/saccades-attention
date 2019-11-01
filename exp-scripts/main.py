@@ -344,7 +344,7 @@ def exploration_screen(trial):
     reset_port()
     core.wait(EXPLORE_DUR)
     win.flip(clearBuffer=True)
-    core.wait(0.2)
+    core.wait(0.5)
 
 
 def show_memory_trial(trial):
