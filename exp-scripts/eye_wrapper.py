@@ -93,9 +93,9 @@ class SimpleEyelink(object):
         """ Drift correction with a manually-drawn fixation
         Press ENTER on the Eyelink computer to accept the new fixation
         """
-        el.doDriftCorrect(center_pos[0], center_pos[1], 0, 0)
-        el.applyDriftCorrect()
-        error = el.startRecording(1,1,1,1)
+        self.el.doDriftCorrect(center_pos[0], center_pos[1], 0, 0)
+        self.el.applyDriftCorrect()
+        error = self.el.startRecording(1,1,1,1)
         return error
 
     def trigger(self, trig):

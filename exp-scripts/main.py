@@ -6,18 +6,15 @@ G.Brookshire@bham.ac.uk
 Design
 - Show the same 6 stimuli in random locations on every trial
 - At the end of each trial, probe memory
-    - Ask which of 2 stimuli was present at a marked location 
+    - Ask which of 2 stimuli was present at a marked location
 """
 
 # TODO
 """
 Things to check
-- Test lattice position on the screen
-- Make sure triggers do not overlap
-- Check stimulus size
-- Go through all TODO and FIXME tags
 - Gaze-contingent trials
 - Test drift correction during fixation
+- Feedback about correct/incorrect in memory trials
 - Give a break every few minutes (Currently self-paced)
 
 Tests
@@ -33,14 +30,14 @@ Tests
 import os
 import datetime
 import numpy as np
-import random 
+import random
 
 # Psychopy
 from psychopy import parallel
 from psychopy import visual, core, data, event, monitors
 
 # Custom modules
-import refcheck 
+import refcheck
 import dist_convert as dc
 import eye_wrapper
 from lattice import lattice
@@ -51,10 +48,10 @@ from lattice import lattice
 ############
 
 # Set to False for testing without triggers, eye-tracker, etc
-IN_MEG_LAB = False
+IN_MEG_LAB = True
 
 START_TIME = datetime.datetime.now().strftime('%Y-%m-%d-%H%M')
-RT_CLOCK = core.Clock() # for measuring response times 
+RT_CLOCK = core.Clock() # for measuring response times
 
 TRIGGERS = {'fixation': 1,
             'explore': 3,
@@ -64,7 +61,7 @@ TRIGGERS = {'fixation': 1,
             'drift_correct_end': 11}
 
 KEYS = {'break': 'escape',
-        'drift': 'enter',
+        'drift': 'return',
         'accept': 'space',
         'left': '4',
         'right': '7'}
@@ -77,16 +74,19 @@ COLORS = {'cs': 'rgb255', # ColorSpace
           'blue': [35, 170, 230]}
 
 FULL_SCREEN = True
-if FULL_SCREEN: 
+if FULL_SCREEN:
     SCREEN_RES = [1920, 1080] # Full res on the Propixx projector
-else: 
+else:
     SCREEN_RES = [1000, 1000]
-STIM_SIZE = int(dc.deg2pix(2.0)) # Size in pixels TODO Check this
-STIM_DIST = int(dc.deg2pix(3.0)) # Min distance between images TODO Check this 
+STIM_SIZE_DEG = 2.0
+STIM_DIST_DEG = 3.0
+STIM_SIZE = int(dc.deg2pix(STIM_SIZE_DEG)) # Size in pixels
+STIM_DIST = int(dc.deg2pix(STIM_DIST_DEG)) # Min distance between images
 EXPLORE_DUR = 5.0 # Explore stim screen for X seconds
 RESPONSE_CUTOFF = 5.0 # Respond within this time
-FIX_DUR = 1.0 # Hold fixation for X seconds before starting trial
-FIX_THRESH = 100 # Subject must fixate w/in this distance to start trial (pix)
+FIX_DUR = 0.5 # Hold fixation for X seconds before starting trial
+FIX_THRESH_DEG = 1.0 # Subject must fixate w/in this distance to start trial
+FIX_THRESH = int(dc.deg2pix(FIX_THRESH_DEG))
 N_TRIALS = 300 # Should be about 45-50 min
 
 END_EXPERIMENT = 9999 # Numeric tag signals stopping expt early
@@ -119,9 +119,10 @@ if IN_MEG_LAB:
     def send_trigger(trig):
         """ Send triggers to the MEG acquisition computer
         and the EyeLink computer.
-        """ 
-        port.setData(TRIGGERS[trig]) #TODO test with setData (vs setPin)
-        el.trigger(trig)
+        """
+        t = TRIGGERS[trig]
+        port.setData(t)
+        el.trigger(t)
 
     def reset_port():
         """ Reset the parallel port to avoid overlapping triggers
@@ -155,7 +156,7 @@ win_size = SCREEN_RES
 win_center = (0, 0)
 
 win = visual.Window(win_size,
-                    monitor='MEG_LAB_MONITOR', ## FIXME
+                    monitor='propixxMonitor',
                     fullscr=FULL_SCREEN,
                     color=COLORS['grey'], colorSpace=COLORS['cs'],
                     allowGUI=False)
@@ -186,14 +187,14 @@ for n in range(n_stimuli):
             size=STIM_SIZE,
             name = str(n),
             **stim_params)
-    pic_stims.append(s) 
+    pic_stims.append(s)
 
 # Positions of the picture stimuli
 stim_locs = lattice(center=win_center, n_fold=6, radius=STIM_DIST, n_layers=2)
 
-# # For marking the gaze position
-#eye_marker = visual.Circle(radius=20, pos=win_center, **circle_params)
-#eye_marker.fillColor = COLORS['pink']
+# For marking the gaze position
+eye_marker = visual.Circle(radius=20, pos=win_center, **circle_params)
+eye_marker.fillColor = COLORS['pink']
 
 
 ###################
@@ -208,7 +209,9 @@ for n in range(N_TRIALS):
     for i_stim in range(n_stimuli):
         tag = 'loc_{}'.format(i_stim)
         d[tag] = stim_locations[i_stim]
-    d['mem_target'] = choice(n_stimuli)
+    # Only show four stimuli on each trial
+    d['display_stims'] = choice(range(n_stimuli), size=4, replace=False)
+    d['mem_target'] = choice(d['display_stims'])
     nontarget_stimuli = [e for e in range(n_stimuli) if e != d['mem_target']]
     d['mem_distractor'] = choice(nontarget_stimuli)
     mem_loc_tag = 'loc_{}'.format(d['mem_target'])
@@ -234,7 +237,7 @@ def show_lattice():
     """ Show all the positions of the lattice for testing stim positions
     """
     lattice_stims = []
-    for p in stim_locs: 
+    for p in stim_locs:
         s = visual.Circle(radius=STIM_SIZE/2, pos=p, **circle_params)
         lattice_stims.append(s)
     for s in lattice_stims:
@@ -266,7 +269,7 @@ def drift_correct():
     """
     # Draw the fixation dot
     fixation.draw()
-    win.flip() 
+    win.flip()
     send_trigger('drift_correct_start')
     reset_port()
     # Do the drift correction
@@ -280,16 +283,16 @@ def experimenter_control():
     """ Check for experimenter key-presses to pause/exit the experiment or
     correct drift in the eye-tracker.
     """
-    r = event.getKeys(KEYS.values()) 
+    r = event.getKeys(KEYS.values())
     if KEYS['break'] in r:
         show_text('End experiment? (y/n)')
         core.wait(1.0)
         event.clearEvents()
         r = event.waitKeys(keyList=['y', 'n'])
         if 'y' in r:
-            return END_EXPERIMENT 
+            return END_EXPERIMENT
     elif KEYS['drift'] in r:
-        drift_correct() 
+        drift_correct()
 
 
 def run_trial(trial):
@@ -303,27 +306,27 @@ def run_trial(trial):
     reset_port()
     t_fix = core.monotonicClock.getTime() # Start a timer
 
-    while True: 
+    while True:
         # Check for experimenter control to end the expt early
         if experimenter_control() == END_EXPERIMENT:
             return END_EXPERIMENT
 
-        d = euc_dist(eye_pos(), win_center) 
+        d = euc_dist(dc.origin_propixx2psychopy(eye_pos()), win_center)
         # Reset timer if not looking at fixation
-        if (d > FIX_THRESH): 
-            t_fix = core.monotonicClock.getTime() 
+        if (d > FIX_THRESH):
+            t_fix = core.monotonicClock.getTime()
         # If they are looking at the fixation, have they looked long enough?
         elif (core.monotonicClock.getTime() - t_fix) > FIX_DUR:
-            break 
-        # If they are looking, but haven't held fixation long enough 
+            break
+        # If they are looking, but haven't held fixation long enough
         else:
             fixation.draw()
             win.flip()
-            
+
     # Present the trial
     exploration_screen(trial)
     show_memory_trial(trial)
-    
+
     return experimenter_control()
 
 
@@ -331,15 +334,16 @@ def exploration_screen(trial):
     """ Show all 6 stimuli at their respective locations
     """
     for n in range(len(pic_stims)):
-        pos = stim_locs[trial['loc_{}'.format(n)]]
-        pic_stims[n].pos = pos
-        pic_stims[n].draw()
+        if n in trial['display_stims']:
+            pos = stim_locs[trial['loc_{}'.format(n)]]
+            pic_stims[n].pos = pos
+            pic_stims[n].draw()
     win.flip()
     send_trigger('explore')
     reset_port()
     core.wait(EXPLORE_DUR)
     win.flip(clearBuffer=True)
-    core.wait(0.2) 
+    core.wait(0.2)
 
 
 def show_memory_trial(trial):
@@ -359,7 +363,7 @@ def show_memory_trial(trial):
         distractor_pos = right_pos
     else:
         target_pos = right_pos
-        distractor_pos = left_pos 
+        distractor_pos = left_pos
     targ_stim = pic_stims[trial['mem_target']]
     dist_stim = pic_stims[trial['mem_distractor']]
     targ_stim.pos = target_pos
@@ -371,17 +375,17 @@ def show_memory_trial(trial):
     send_trigger('mem_test')
     RT_CLOCK.reset()
     reset_port()
-    
+
     # Wait for a key press
     event.clearEvents()
     r = event.waitKeys(maxWait=RESPONSE_CUTOFF,
                        keyList=[KEYS['left'], KEYS['right']],
-                       timeStamped=RT_CLOCK) 
+                       timeStamped=RT_CLOCK)
     if r is None:
         show_text('Too slow -- try to respond quickly!')
         core.wait(2)
     else:
-        send_trigger('response') 
+        send_trigger('response')
         reset_port()
         trials.addData('resp', r[0][0])
         trials.addData('rt', r[0][1])
@@ -400,7 +404,7 @@ def eye_pos_check():
             drift_correct()
 
         pos = eye_pos()
-        pos = origin_propixx2psychopy(pos)
+        pos = dc.origin_propixx2psychopy(pos)
         eye_marker.pos = pos # Mark the current fixation
 
         # Draw the stimuli
@@ -416,8 +420,8 @@ def run_exp():
 
     # A few tests before beginning the experiment
     refcheck.check_refresh_rate(win, refresh_rate)
-    show_lattice()
-    #eye_pos_check() 
+    # show_lattice()
+    # eye_pos_check()
 
     # Instructions
     for line in instruct_text:
@@ -441,5 +445,5 @@ def run_exp():
     win.close()
     if IN_MEG_LAB:
         el.shutdown()
-    core.quit() 
+    core.quit()
 
