@@ -305,6 +305,7 @@ def run_trial(trial):
     send_trigger('fixation')
     reset_port()
     t_fix = core.monotonicClock.getTime() # Start a timer
+    core.wait(0.2)
 
     while True:
         # Check for experimenter control to end the expt early
