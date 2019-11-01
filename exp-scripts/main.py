@@ -212,7 +212,7 @@ for n in range(N_TRIALS):
     # Only show four stimuli on each trial
     d['display_stims'] = choice(range(n_stimuli), size=4, replace=False)
     d['mem_target'] = choice(d['display_stims'])
-    nontarget_stimuli = [e for e in range(n_stimuli) if e != d['mem_target']]
+    nontarget_stimuli = [e for e in d['display_stims'] if e != d['mem_target']]
     d['mem_distractor'] = choice(nontarget_stimuli)
     mem_loc_tag = 'loc_{}'.format(d['mem_target'])
     d['mem_loc'] = d[mem_loc_tag]
