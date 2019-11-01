@@ -1,5 +1,6 @@
-In this study, you'll see a few images appear together on the screen for about 5 seconds.
-Your job is to memorize the positions of the dots.
-Then the images will disappear and a dot will appear somewhere on the screen.
-Your job is to choose which image was at the position of the dot.
-Press the button on the side with the correct image.
+In this study, you'll see four images appear together on the screen for several seconds.
+Your job is to memorize where each image appears.
+After a few seconds, the images will disappear and a dot will appear somewhere on the screen. At the bottom of the screen, you'll see two images which might have appeared at the position of the dot.
+Choose which image was at the position of the dot. You can do this by pressing the button with either your right or left index finger.
+Do you have any questions before beginning?
+Get ready to start!
