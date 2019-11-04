@@ -55,10 +55,10 @@ RT_CLOCK = core.Clock() # for measuring response times
 
 TRIGGERS = {'fixation': 1,
             'explore': 2,
-            'mem_test': 3,
-            'response': 4,
-            'drift_correct_start': 10,
-            'drift_correct_end': 11}
+            'mem_test': 4,
+            'response': 8,
+            'drift_correct_start': 16,
+            'drift_correct_end': 32}
 
 KEYS = {'break': 'escape',
         'drift': 'return',
@@ -267,6 +267,8 @@ def drift_correct():
     """ Eye-tracker drift correction.
     Press SPACE on the Eyelink machine to accept the current position.
     """
+    reset_port()
+    core.wait(0.2)
     # Draw the fixation dot
     fixation.draw()
     win.flip()
@@ -376,6 +378,7 @@ def show_memory_trial(trial):
     send_trigger('mem_test')
     RT_CLOCK.reset()
     reset_port()
+    core.wait(0.2)
 
     # Wait for a key press
     event.clearEvents()
