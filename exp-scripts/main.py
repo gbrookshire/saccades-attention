@@ -53,10 +53,10 @@ IN_MEG_LAB = True
 START_TIME = datetime.datetime.now().strftime('%Y-%m-%d-%H%M')
 RT_CLOCK = core.Clock() # for measuring response times
 
-TRIGGERS = {'fixation': 1,
-            'explore': 2,
-            'mem_test': 4,
-            'response': 8,
+TRIGGERS = {'response': 1,
+            'fixation': 2,
+            'explore': 4,
+            'mem_test': 8,
             'drift_correct_start': 16,
             'drift_correct_end': 32}
 
