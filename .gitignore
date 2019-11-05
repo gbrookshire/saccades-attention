@@ -1,6 +1,7 @@
 logfiles/
 ethics/
 eyelink/
+data/
 
 # Matlab stuff
 *.mat
