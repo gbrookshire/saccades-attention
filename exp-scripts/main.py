@@ -275,7 +275,7 @@ def drift_correct():
     send_trigger('drift_correct_start')
     reset_port()
     # Do the drift correction
-    fix_pos = np.int64(dc.origin_psychopy2propixx(fixation.pos))
+    fix_pos = np.int64(dc.origin_psychopy2eyelink(fixation.pos))
     el.drift_correct(fix_pos)
     send_trigger('drift_correct_end')
     reset_port()
@@ -314,7 +314,7 @@ def run_trial(trial):
         if experimenter_control() == END_EXPERIMENT:
             return END_EXPERIMENT
 
-        d = euc_dist(dc.origin_propixx2psychopy(eye_pos()), win_center)
+        d = euc_dist(dc.origin_eyelink2psychopy(eye_pos()), win_center)
         # Reset timer if not looking at fixation
         if (d > FIX_THRESH):
             t_fix = core.monotonicClock.getTime()
@@ -408,7 +408,7 @@ def eye_pos_check():
             drift_correct()
 
         pos = eye_pos()
-        pos = dc.origin_propixx2psychopy(pos)
+        pos = dc.origin_eyelink2psychopy(pos)
         eye_marker.pos = pos # Mark the current fixation
 
         # Draw the stimuli

@@ -12,7 +12,7 @@ screen_height = 39.5
 # Screen resolution
 screen_res = (1920, 1080)
 
-def origin_propixx2psychopy(pos):
+def origin_eyelink2psychopy(pos):
     """ Convert coordinates for shifting the origin from the
         bottom right of the screen, with Y increasing upward,
         to the center of the screen, with Y increasing downward.
@@ -23,7 +23,7 @@ def origin_propixx2psychopy(pos):
     return [x, y]
 
 
-def origin_psychopy2propixx(pos):
+def origin_psychopy2eyelink(pos):
     """ Convert in the opposite direction.
     """
     x,y = pos
