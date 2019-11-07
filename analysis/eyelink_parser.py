@@ -32,6 +32,10 @@ class EyelinkData(object):
         fix = _get_entries(self.lines, 'EFIX')
         fix = pd.DataFrame(fix, columns=colnames)
         fix = fix.drop(columns='EFIX')
+        for col in ['start', 'end', 'dur', 'pupil']:
+            fix[col] = fix[col].astype(int)
+        for col in ['x_avg', 'y_avg']:
+            fix[col] = fix[col].astype(float)
         self.fixations = fix
 
         # Triggers
@@ -40,5 +44,6 @@ class EyelinkData(object):
         msg = [m for m in msg if m[2] == 'Trigger']
         msg = pd.DataFrame(msg, columns=colnames)
         msg = msg.drop(columns=['MSG', 'type'])
+        msg = msg.astype(int)
         self.triggers = msg
 
