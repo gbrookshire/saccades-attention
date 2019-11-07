@@ -11,11 +11,13 @@ Design
 
 # TODO
 """
-Things to check
-- Gaze-contingent trials
-- Test drift correction during fixation
+Features to add
 - Feedback about correct/incorrect in memory trials
 - Give a break every few minutes (Currently self-paced)
+- Different stimulus during drift correction
+- Response with 2 fingers on the right hand (not 2 hands)
+
+Things to check
 
 Tests
 - Get a couple behavioral pilots
