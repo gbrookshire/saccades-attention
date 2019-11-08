@@ -1,0 +1,20 @@
+{
+    "event_dict": {
+        "response": 1,
+        "fixation": 2,
+        "explore": 4,
+        "mem_test": 8,
+        "drift_correct_start": 16,
+        "drift_correct_end": 32,
+
+        "fix_on": 100,
+        "fix_off": 200
+    },
+
+    "data_dir": "../data/",
+
+    "stim_size_deg": 2.0,
+    "stim_dist_deg": 3.0,
+
+    "fsample_eyelink": 1000
+}
