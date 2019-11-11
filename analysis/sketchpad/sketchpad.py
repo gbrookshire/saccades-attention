@@ -17,7 +17,9 @@ raw = mne.io.read_raw_fif(raw_file)
 # Inspect the data
 fig = raw.plot(butterfly=True)
 fig.canvas.key_press_event('a') # Press 'a' to start entering annotations 
-# Doesn't work on my lab desktop?
+# First click on "Add label"
+# Edit the label -- glitch, jump, etc
+# Click and drag to set a new annotation (with some delay"
 interactive_annot = raw.annotations
 #raw.annotations.save('saved-annotations.csv')
 #annot_from_file = mne.read_annotations('saved-annotations.csv')
