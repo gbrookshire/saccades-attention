@@ -103,27 +103,23 @@ for i_time in tqdm(range(epochs.times.size)):
     #y_pred = linreg.predict(x)
     #mse = np.mean((y - y_pred) ** 2)
 
-    logreg = LogisticRegression(penalty='l1',
-                                solver='liblinear', 
-                                # Here's a value of C that works. How do 
-                                # I look for this number programmatically?
-                                C=0.05,
-                                # How does this set the alpha (lambda?) parameter?
-                                # Fit a separate binary classifier for each label
-                                multi_class='ovr',
-                                #n_jobs=3,
+    clf = LogisticRegression(penalty='l1',
+                                solver='saga', 
+                                C=0.112,
+                                multi_class='multinomial',
+                                n_jobs=3,
                                 max_iter=1e4,
                                 )
-    #logreg = LogisticRegression(penalty='none', solver='saga')
+    #clf = LogisticRegression(penalty='none', solver='saga')
     # It's definitely overfitting to test on the data used for fitting
-    logreg.fit(x, labels)
-    #plt.imshow(logreg.coef_, aspect='auto')
-    n_coef = np.mean(np.sum(logreg.coef_ != 0, axis=1)) # How many nonzero coefficients?
+    clf.fit(x, labels)
+    #plt.imshow(clf.coef_, aspect='auto')
+    n_coef = np.mean(np.sum(clf.coef_ != 0, axis=1)) # How many nonzero coefficients?
     n_nonzero_coefs.append(n_coef)
-    # y_pred_prob = logreg.predict_proba(x)
-    # y_pred_class = logreg.predict(x)
+    # y_pred_prob = clf.predict_proba(x)
+    # y_pred_class = clf.predict(x)
     # a = np.mean(y_pred_class == labels)
-    a = logreg.score(x, labels)
+    a = clf.score(x, labels)
     acc.append(a)
 
 # Try out cross-validation
@@ -131,16 +127,18 @@ y = np.array(labels == 0) # Try a classifier for one label
 i_time = 60
 x = d[:,:,i_time]
 x = scaler.fit_transform(x)
-logreg_cv = LogisticRegressionCV(
-                Cs=np.logspace(-10, 5, 15),
+clf = LogisticRegressionCV(
+                Cs=[0.106], #np.linspace(0.001, 1, 20),
                 cv=5, # N folds
                 penalty='l1', # LASSO
-                solver='liblinear', 
+                solver='saga', 
                 n_jobs=3,
                 max_iter=1e4,
                 #scoring='roc_auc',
-                #multi_class='ovr' # Fit a binary problem for each label
+                #multi_class='ovr', # Fit a binary problem for each label
+                multi_class='multinomial',
                 )
-logreg_cv.fit(x, y)
-print(logreg_cv.C_)
-print(logreg_cv.scores_)
+clf.fit(x, labels)
+print(clf.C_)
+print(clf.scores_)
+print(clf.coef_)
