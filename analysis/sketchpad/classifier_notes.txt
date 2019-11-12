@@ -26,7 +26,8 @@ Elastic net
 	- alpha = 1: LASSO
 	- 0 < alpha < 1: Elastic net regression
 
-Implementation with sklearn
+Implementation
+* sklearn
 - Several different functions might be relevant
 	- Lasso
 		- LassoCV helps select regularization parameter
@@ -49,3 +50,12 @@ Implementation with sklearn
 		- fit.predict_proba
 		- fit.score
 		- fit.sparsify to get a smaller/faster matrix
+* glmnet
+
+Analysis notes
+- I'm trying out the analysis on the pilot dataset
+- LogisticRegressionCV
+    - It works alright with multi_class='multinomai', but not with 'ovr'
+        - with 'ovr', it always sets all (or almost all) coefficients to zero
+        - and chooses the smallest value of C regardless
+    
