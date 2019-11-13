@@ -77,6 +77,7 @@ from sklearn.linear_model import LogisticRegression, LogisticRegressionCV
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import roc_auc_score
+from sklearn.model_selection import cross_validate, cross_val_score                                            
 
 scaler = StandardScaler()
 
@@ -88,57 +89,55 @@ bad_trials = np.nonzero(bad_trials)[0]
 d = np.delete(d, bad_trials, axis=0)
 labels = np.delete(labels, bad_trials, axis=0)
 
-acc = []
-n_nonzero_coefs = []
-#for i_time in range(epochs.times.size):
+# Details of the classifier calls
+clf_params = {'penalty': 'l1', # Main classifier
+              'solver': 'liblinear',
+              'multi_class': 'ovr',
+              'max_iter': 1e4}
+cv_params= {'cv': 5, # Cross-validataion
+            'n_jobs': 3,
+            'scoring': 'accuracy'}
+cv_reg_params = {'penalty': 'l1', # CV of regularization param
+                 'solver': 'saga',
+                 'multi_class': 'multinomial',
+                 'max_iter': 1e4}
+
+# Set up the classifier
+clf = LogisticRegression(C=0.112, **clf_params)
+
+results = []
+accuracy = []
 for i_time in tqdm(range(epochs.times.size)):
-    x = d[:,:,i_time]
-    #y = (labels == stim).astype(int) # For looking at individual labels
-
+    # Select data at this time-point
+    x = d[:,:,i_time] 
     # Standardize the data within each MEG channel
-    x = scaler.fit_transform(x)
+    x = scaler.fit_transform(x) 
+    # Cross-validated classifiers
+    res = cross_validate(clf, x, labels,
+                         return_estimator=True,
+                         **cv_params)
+    # Store the results
+    results.append(res)
+    accuracy.append(res['test_score'].mean())
 
-    #linreg = LinearRegression(normalize=True) # Check about normalize
-    #linreg.fit(x, y)
-    #y_pred = linreg.predict(x)
-    #mse = np.mean((y - y_pred) ** 2)
+# Plot the results
+plt.plot(epochs.times, accuracy)
+plt.plot([epochs.times.min(), epochs.times.max()], # Mark chance level
+         np.array([1, 1]) * (1 / len(np.unique(labels))),
+         '--k')
+plt.ylabel('Accuracy')
+plt.xlabel('Time (s)')
 
-    clf = LogisticRegression(penalty='l1',
-                                solver='saga', 
-                                C=0.112,
-                                multi_class='multinomial',
-                                n_jobs=3,
-                                max_iter=1e4,
-                                )
-    #clf = LogisticRegression(penalty='none', solver='saga')
-    # It's definitely overfitting to test on the data used for fitting
-    clf.fit(x, labels)
-    #plt.imshow(clf.coef_, aspect='auto')
-    n_coef = np.mean(np.sum(clf.coef_ != 0, axis=1)) # How many nonzero coefficients?
-    n_nonzero_coefs.append(n_coef)
-    # y_pred_prob = clf.predict_proba(x)
-    # y_pred_class = clf.predict(x)
-    # a = np.mean(y_pred_class == labels)
-    a = clf.score(x, labels)
-    acc.append(a)
-
-# Try out cross-validation
+# Try out cross-validation to find the best values of C/lambda/alpha
 y = np.array(labels == 0) # Try a classifier for one label
 i_time = 60
 x = d[:,:,i_time]
 x = scaler.fit_transform(x)
-clf = LogisticRegressionCV(
-                Cs=[0.106], #np.linspace(0.001, 1, 20),
-                cv=5, # N folds
-                penalty='l1', # LASSO
-                solver='saga', 
-                n_jobs=3,
-                max_iter=1e4,
-                #scoring='roc_auc',
-                #multi_class='ovr', # Fit a binary problem for each label
-                multi_class='multinomial',
-                )
+clf = LogisticRegressionCV(Cs=np.linspace(0.001, 1, 20),
+                           **cv_reg_params,
+                           **cv_params)
 clf.fit(x, labels)
 print(clf.C_)
 print(clf.scores_)
 print(clf.coef_)
+

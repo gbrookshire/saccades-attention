@@ -41,7 +41,7 @@ Implementation
 		- solver: can influence speed (and feasibility)
 		- multi_class:
 			- ovr - binary fit for each label
-			- multinomai - predicts specific label
+			- multinomial - predicts specific label
 		- max_iter: extend number of iterations to solve
 		- l1_ratio: elastic net mixing parameter
 		- Choose C and l1_ratio using `LogisticRegressionCV`
@@ -53,9 +53,40 @@ Implementation
 * glmnet
 
 Analysis notes
-- I'm trying out the analysis on the pilot dataset
 - LogisticRegressionCV
-    - It works alright with multi_class='multinomai', but not with 'ovr'
-        - with 'ovr', it always sets all (or almost all) coefficients to zero
-        - and chooses the smallest value of C regardless
-    
+    - Useful to figure out a good regularization parameter C/alpha/lambda
+    - multi_class:
+        - It works alright with multi_class='multinomial', but not with 'ovr'
+            - with 'ovr', it always sets all (or almost all) coefficients to zero
+            - and chooses the smallest value of C regardless
+        - Can we pick the regularization parameter using 'multinomial',
+            but then do our main analyses with 'ovr'?
+            - I think this should be fine, since it just chooses important variables
+- LogisticRegression
+    - multi_class:
+        - ovr: Fit separate binary models for each label
+        - multinomial: One model that simultaneously finds each label
+    - n_jobs: Instead of parallelizing here, do it in cross_validate
+    - Speed comparisons:
+        - I ran a quick comparison on one timepoint of Yali's data
+            - using 5-fold CV
+        - Accuracy scores are (almost) identical
+        - liblinear & ovr: Fastest! 0.23 s
+        - liblinear & multinomial: not supported
+        - saga & multinomial: 41 s
+        - saga & ovr: 50 s 
+- cross_validate
+    - Fits the models with cross-validation
+    - scoring: lots of algorithms to choose from
+        - https://scikit-learn.org/stable/modules/model_evaluation.html#scoring-parameter
+        - accuracy: Checks for matching labels
+        - roc_auc: I'm not sure why we'd prefer this over `accuracy`
+            - Doesn't work with multiclass data (though I think it's supposed to)
+        - neg_mean_squared_error: Should take into account all labels simultaneously
+            - Values are difficult to interpret
+        - neg_median_absolute_error: Same idea, but robust to outliers
+            - No good for categorical data because it only comes out as whole numbers
+        - r2: Not necessarily the square of R -- can be negative
+            - Gives negative values on the test dataset
+    - n_jobs: use this parameter here instead of in the model class (e.g. LogisticRegression)
+
