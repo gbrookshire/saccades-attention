@@ -62,6 +62,7 @@ Analysis notes
         - Can we pick the regularization parameter using 'multinomial',
             but then do our main analyses with 'ovr'?
             - I think this should be fine, since it just chooses important variables
+    - scoring: Works much better with 'accuracy' than with 'neg_mean_squared_error'
 - LogisticRegression
     - multi_class:
         - ovr: Fit separate binary models for each label
@@ -83,7 +84,7 @@ Analysis notes
         - roc_auc: I'm not sure why we'd prefer this over `accuracy`
             - Doesn't work with multiclass data (though I think it's supposed to)
         - neg_mean_squared_error: Should take into account all labels simultaneously
-            - Values are difficult to interpret
+            - Values are noisier than accuracy and difficult to interpret
         - neg_median_absolute_error: Same idea, but robust to outliers
             - No good for categorical data because it only comes out as whole numbers
         - r2: Not necessarily the square of R -- can be negative

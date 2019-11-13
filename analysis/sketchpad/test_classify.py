@@ -97,14 +97,28 @@ clf_params = {'penalty': 'l1', # Main classifier
 cv_params= {'cv': 5, # Cross-validataion
             'n_jobs': 3,
             'scoring': 'accuracy'}
-cv_reg_params = {'penalty': 'l1', # CV of regularization param
+cv_reg_params = {'penalty': 'l1', # CV of regularization parameter
                  'solver': 'saga',
                  'multi_class': 'multinomial',
                  'max_iter': 1e4}
 
-# Set up the classifier
-clf = LogisticRegression(C=0.112, **clf_params)
+# Find the best values of C/lambda/alpha
+# Only run this once -- not separately for every subject/timepoint
+i_time = 60
+x = d[:,:,i_time]
+x = scaler.fit_transform(x)
+clf = LogisticRegressionCV(Cs=np.linspace(0.001, 1, 20),
+                           **cv_reg_params,
+                           **cv_params)
+clf.fit(x, labels)
+print(clf.C_) # Show the regularization parameter
+print(np.mean(np.sum(clf.coef_ != 0, axis=1))) # Avg number of nonzero coefs
+print(clf.score(x, labels)) 
 
+# Set up the classifier
+clf = LogisticRegression(C=0.106, **clf_params)
+
+# Run the classifier for each time-point
 results = []
 accuracy = []
 for i_time in tqdm(range(epochs.times.size)):
@@ -127,17 +141,7 @@ plt.plot([epochs.times.min(), epochs.times.max()], # Mark chance level
          '--k')
 plt.ylabel('Accuracy')
 plt.xlabel('Time (s)')
+plt.show()
 
-# Try out cross-validation to find the best values of C/lambda/alpha
-y = np.array(labels == 0) # Try a classifier for one label
-i_time = 60
-x = d[:,:,i_time]
-x = scaler.fit_transform(x)
-clf = LogisticRegressionCV(Cs=np.linspace(0.001, 1, 20),
-                           **cv_reg_params,
-                           **cv_params)
-clf.fit(x, labels)
-print(clf.C_)
-print(clf.scores_)
-print(clf.coef_)
+
 
