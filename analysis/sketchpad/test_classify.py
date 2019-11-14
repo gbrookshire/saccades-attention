@@ -24,9 +24,9 @@ fnames = {'meg': '191104/yalitest.fif',
 fname = expt_info['data_dir'] + 'raw/' + fnames['meg'] 
 raw = mne.io.read_raw_fif(fname)
 events = mne.find_events(raw, # Segment out the MEG events
-                            stim_channel='STI101',
-                            mask=0b00111111, # Ignore Nata button triggers
-                            shortest_event=1)
+                         stim_channel='STI101',
+                         mask=0b00111111, # Ignore Nata button triggers
+                         shortest_event=1)
 
 # Read in the EyeTracker data
 fname = expt_info['data_dir'] + 'eyelink/ascii/' + fnames['eye']
@@ -48,8 +48,8 @@ fix_info = fix_info.loc[new_obj]
 fix_events = fix_events[new_obj,:]
 
 # Epoch the data
-tmin = -0.2
-tmax = 0.2
+tmin = -0.4
+tmax = 0.4
 picks = mne.pick_types(raw.info,
                        meg=True, eeg=False, eog=False,
                        stim=False, exclude='bads')
@@ -69,7 +69,8 @@ epochs.resample(200)#, n_jobs=3)
 
 # Plot activity evoked by an eye movement
 evoked = epochs.average()
-evoked.plot()
+evoked.plot(spatial_colors=True)
+evoked.plot(gfp='only')
 times = np.arange(-0.05, 0.2, 0.05)
 evoked.plot_topomap(times=times, ch_type='grad')
 evoked.plot_topomap(times=times, ch_type='mag')
