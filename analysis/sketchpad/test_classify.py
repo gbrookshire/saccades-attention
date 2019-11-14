@@ -38,7 +38,14 @@ behav = pd.read_csv(fname)
 
 # Get the fixation events
 fix_info, events = fixation_events.get_fixation_events(events, eye_data, behav)
-fix_events = events[events[:,2] == expt_info['event_dict']['fix_on'], :]
+# Look at the beginning of the fixation
+row_sel = events[:,2] == expt_info['event_dict']['fix_on']
+fix_events = events[row_sel, :]
+# Don't look at multiple fixations to the same object
+new_obj = np.diff(fix_info['closest_stim']) != 0
+new_obj = np.hstack((True, new_obj)) # First fixation is to a new object
+fix_info = fix_info.loc[new_obj]
+fix_events = fix_events[new_obj,:]
 
 # Epoch the data
 tmin = -0.2
@@ -113,7 +120,7 @@ clf = LogisticRegressionCV(Cs=np.linspace(0.001, 1, 20),
 clf.fit(x, labels)
 print(clf.C_) # Show the regularization parameter
 print(np.mean(np.sum(clf.coef_ != 0, axis=1))) # Avg number of nonzero coefs
-print(clf.score(x, labels)) 
+print(clf.score(x, labels))
 
 # Set up the classifier
 clf = LogisticRegression(C=0.106, **clf_params)
