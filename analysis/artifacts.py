@@ -35,7 +35,7 @@ def identify_artifacts(n):
             print('Creating new artifact annotations')
         else:
             print(f'Option not recognized -- exiting') 
-            #return None
+            return None
     else:
         annotations = identify_manual(raw)
         annotations.save(annot_fname)
@@ -47,12 +47,11 @@ def identify_artifacts(n):
     ica = identify_ica(raw_downsamp)
     ica_fname = f'{data_dir}ica/{subj_fname}-ica.fif'
     ica.save(ica_fname)
-    ica.apply(raw) # Changes the `raw` object in place
 
     # # Check whether ICA worked as expected
     # orig_raw = raw.copy()
     # raw.load_data()
-    # ica.apply(raw) # This 
+    # ica.apply(raw) # Changes the `raw` object in place
     # orig_raw.plot()
     # raw.plot()
 
