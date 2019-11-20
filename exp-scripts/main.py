@@ -16,8 +16,7 @@ Features to add
 - Give a break every few minutes (Currently self-paced)
 - Different stimulus during drift correction
 - Response with 2 fingers on the right hand (not 2 hands)
-
-Things to check
+- Message to start a new MEG recording file
 
 Tests
 - Get a couple behavioral pilots
