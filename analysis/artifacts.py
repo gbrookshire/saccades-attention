@@ -55,12 +55,6 @@ def identify_artifacts(n):
     # orig_raw.plot()
     # raw.plot()
 
-    # Automatic artifact rejection
-    #### Do this on the epoched data
-    raw = identify_auto(raw)
-
-    return raw
-
 
 def downsample(raw, downsample_factor):
     """ Resample a raw data object without any filtering.
@@ -119,6 +113,9 @@ def identify_ica(raw):
     ica.plot_components(inst=raw) # Scalp topographies - Click for more info
     ica.plot_sources(raw) # Time-courses - click on the ones to exclude
     
+    input('Press ENTER when finished marking bad components')
+    return ica
+
     # ###### Automatically find components that match the EOG recordings
     # ica.exclude = [] # Empty out the excluded comps (for testing the pipeline)
     # # find which ICs match the EOG pattern
@@ -134,13 +131,21 @@ def identify_ica(raw):
     # ica.plot_sources(eog_evoked)
     # ###### A similar thing for heartbeat: ica.find_bads_ecg (method='correlation') 
 
-    input('Press ENTER when finished marking bad components')
-    return ica
+    # # Check how the data changes when components are excluded
+    # ica.plot_overlay(raw, exclude=[2], picks='mag')
+    # ica.plot_overlay(raw, exclude=[2], picks='grad')
+    # 
+    # ica.plot_properties(raw, picks=ica.exclude)
+    # 
 
 
-#     # # Check how the data changes when components are excluded
-#     # ica.plot_overlay(raw, exclude=[2], picks='mag')
-#     # ica.plot_overlay(raw, exclude=[2], picks='grad')
-#     # 
-#     # ica.plot_properties(raw, picks=ica.exclude)
-#     # 
+def main():
+    """ Identify artifacts for one participant
+    """
+    pass
+    n = int(input('Subject number: '))
+    identify_artifacts(n)
+
+
+if __name__ == '__main__':
+    main()
