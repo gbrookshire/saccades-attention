@@ -10,31 +10,46 @@ import mne
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 
+from sklearn.linear_model import LogisticRegression, LogisticRegressionCV
+from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import cross_validate
+# from sklearn.metrics import roc_auc_score
+
 import eyelink_parser 
 import stim_positions
 import fixation_events
 
-expt_info = json.load(open('expt_info.json')) 
+# Which subject to analyze
+n = 1
 
-fnames = {'meg': '191104/yalitest.fif',
-            'eye': '19110415.asc',
-            'behav': '2019-11-04-1527.csv'}
+expt_info = json.load(open('expt_info.json'))
+subject_info = pd.read_csv(expt_info['data_dir'] + 'subject_info.csv') 
+data_dir = expt_info['data_dir']
 
-# Load the MEG data
-fname = expt_info['data_dir'] + 'raw/' + fnames['meg'] 
-raw = mne.io.read_raw_fif(fname)
+# Read in the MEG data
+subj_fname = subject_info['meg'][n]
+raw_fname = f'{data_dir}raw/{subj_fname}.fif'
+raw = mne.io.read_raw_fif(raw_fname)
 events = mne.find_events(raw, # Segment out the MEG events
                          stim_channel='STI101',
                          mask=0b00111111, # Ignore Nata button triggers
                          shortest_event=1)
 
+# Read in artifact definitions
+subj_fname = subj_fname.replace('/', '_')
+annot_fname = f'{data_dir}annotations/{subj_fname}.csv'
+annotations = mne.read_annotations(annot_fname)
+raw.set_annotations(annotations)
+ica_fname = f'{data_dir}ica/{subj_fname}-ica.fif'
+ica = mne.preprocessing.read_ica(ica_fname)
+
 # Read in the EyeTracker data
-fname = expt_info['data_dir'] + 'eyelink/ascii/' + fnames['eye']
-eye_data = eyelink_parser.EyelinkData(fname)
+eye_fname = f'{data_dir}eyelink/ascii/{subject_info["eyelink"][n]}.asc'
+eye_data = eyelink_parser.EyelinkData(eye_fname)
 
 # Load behavioral data
-fname = expt_info['data_dir'] + 'logfiles/' + fnames['behav']
-behav = pd.read_csv(fname) 
+behav_fname = f'{data_dir}logfiles/{subject_info["behav"][n]}.csv'
+behav = pd.read_csv(behav_fname) 
 
 # Get the fixation events
 fix_info, events = fixation_events.get_fixation_events(events, eye_data, behav)
@@ -61,41 +76,44 @@ reject = dict(grad=4000e-13, # T / m (gradiometers)
 epochs = mne.Epochs(raw, fix_events,
                     tmin=tmin, tmax=tmax, 
                     #reject=reject,
+                    reject_by_annotation=True,
+                    preload=True,
+                    baseline=None,
+                    baseline=(None, 0), # Prestimulus period
                     picks=picks)
 
-# Resample after epoching to make sure trigger times are correct
-epochs.load_data()
-epochs.resample(200)#, n_jobs=3)
+# Reject ICA artifacts
+ica.apply(epochs)
 
-# Plot activity evoked by an eye movement
-evoked = epochs.average()
-evoked.plot(spatial_colors=True)
-evoked.plot(gfp='only')
-times = np.arange(-0.05, 0.2, 0.05)
-evoked.plot_topomap(times=times, ch_type='grad')
-evoked.plot_topomap(times=times, ch_type='mag')
+# Resample after epoching to make sure trigger times are correct
+epochs.resample(200, n_jobs=3)
+
+# # Plot activity evoked by an eye movement
+# evoked = epochs.copy().apply_baseline((None, 0)).average()
+# evoked.plot(spatial_colors=True)
+# # evoked.plot(gfp='only')
+# # times = np.arange(-0.05, 0.2, 0.05)
+# # evoked.plot_topomap(times=times, ch_type='grad')
+# # evoked.plot_topomap(times=times, ch_type='mag')
 
 # Classifiers
 d = epochs.get_data() # Trial x Channel x Time
-labels = fix_info['closest_stim'].astype(int) # Stimulus to decode
-labels = labels.to_numpy()
-
-from sklearn.linear_model import Lasso, LinearRegression
-from sklearn.linear_model import LogisticRegression, LogisticRegressionCV
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
-from sklearn.metrics import roc_auc_score
-from sklearn.model_selection import cross_validate, cross_val_score                                            
+labels = fix_info['closest_stim'] # Stimulus to decode
+labels = labels.astype(int).to_numpy()
+labels = labels[epochs.selection] # Only keep retained trials
 
 scaler = StandardScaler()
 
 # Toss weird trials (Should have been done above)
 gfp = np.std(d, axis=1) # Global field power
 max_gfp = np.max(gfp, axis=1) # Max per trial
-bad_trials = max_gfp > (np.std(max_gfp) * 6)
-bad_trials = np.nonzero(bad_trials)[0]
-d = np.delete(d, bad_trials, axis=0)
-labels = np.delete(labels, bad_trials, axis=0)
+zscore = lambda x: (x - x.mean()) / (x.std()) # Func to z-score a vector
+bad_trials = zscore(max_gfp) > 4
+d = d[~bad_trials,:,:]
+labels = labels[~bad_trials]
+# bad_trials = np.nonzero(bad_trials)[0]
+# d = np.delete(d, bad_trials, axis=0)
+# labels = np.delete(labels, bad_trials, axis=0)
 
 # Details of the classifier calls
 clf_params = {'penalty': 'l1', # Main classifier
@@ -112,10 +130,12 @@ cv_reg_params = {'penalty': 'l1', # CV of regularization parameter
 
 # Find the best values of C/lambda/alpha
 # Only run this once -- not separately for every subject/timepoint
-i_time = 60
+t_cv = 0.1 # Time-point at which we're cross-validating
+i_time = np.nonzero(epochs.times >= t_cv)[0][0]
 x = d[:,:,i_time]
 x = scaler.fit_transform(x)
 clf = LogisticRegressionCV(Cs=np.linspace(0.001, 1, 20),
+                           verbose=1,
                            **cv_reg_params,
                            **cv_params)
 clf.fit(x, labels)
@@ -124,7 +144,7 @@ print(np.mean(np.sum(clf.coef_ != 0, axis=1))) # Avg number of nonzero coefs
 print(clf.score(x, labels))
 
 # Set up the classifier
-clf = LogisticRegression(C=0.106, **clf_params)
+clf = LogisticRegression(C=0.05, **clf_params)
 
 # Run the classifier for each time-point
 results = []
@@ -150,6 +170,5 @@ plt.plot([epochs.times.min(), epochs.times.max()], # Mark chance level
 plt.ylabel('Accuracy')
 plt.xlabel('Time (s)')
 plt.show()
-
 
 
