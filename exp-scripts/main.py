@@ -387,13 +387,24 @@ def show_memory_trial(trial):
                        keyList=[KEYS['left'], KEYS['right']],
                        timeStamped=RT_CLOCK)
     if r is None:
-        show_text('Too slow -- try to respond quickly!')
-        core.wait(2)
+        feedback_text = 'Too slow'
     else:
         send_trigger('response')
         reset_port()
-        trials.addData('resp', r[0][0])
-        trials.addData('rt', r[0][1])
+        keypress, rt = r[0] #TODO Make sure responses are logging correctly
+        trials.addData('resp', keypress)
+        trials.addData('rt', rt)
+        # Feedback # TODO Check whether this works
+        # Check if answer was correct
+        if (trial['mem_target_loc'] == 'right') & (keypress == KEYS['right']):
+            feedback_text = 'Correct'
+        elif (trial['mem_target_loc'] == 'left') & (keypress == KEYS['left']):
+            feedback_text = 'Correct'
+        else:
+            feedback_text = 'Incorrect'
+
+    show_text(feedback_text)
+    core.wait(0.5) 
 
 
 def eye_pos_check():
