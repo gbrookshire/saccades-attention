@@ -12,13 +12,12 @@ Design
 # TODO
 """
 Features to add
-- Feedback about correct/incorrect in memory trials
-- Give a break every few minutes (Currently self-paced)
 - Different stimulus during drift correction
 - Response with 2 fingers on the right hand (not 2 hands)
 - Message to start a new MEG recording file
 
 Tests
+- Check all TODO tags
 - Get a couple behavioral pilots
     - Is the task too hard?
     - Do people actually look at all the items?
@@ -89,6 +88,7 @@ FIX_DUR = 0.5 # Hold fixation for X seconds before starting trial
 FIX_THRESH_DEG = 1.0 # Subject must fixate w/in this distance to start trial
 FIX_THRESH = int(dc.deg2pix(FIX_THRESH_DEG))
 N_TRIALS = 300 # Should be about 45-50 min
+REC_LENGTH = 15 * 60 # Length of each MEG recording (in seconds)
 
 END_EXPERIMENT = 9999 # Numeric tag signals stopping expt early
 
@@ -170,13 +170,13 @@ circle_params = {'fillColor': COLORS['white'],
                  'lineColorSpace': COLORS['cs'],
                  **stim_params}
 
-fixation = visual.Circle(radius=10, pos=win_center, **circle_params)
-
 text_stim = visual.TextStim(pos=win_center, text='hello', # For instructions
                             color=COLORS['white'], colorSpace=COLORS['cs'],
                             height=32,
                             **stim_params)
 
+fixation = visual.Circle(radius=10, pos=win_center, **circle_params)
+drift_fixation = visual.Circle(radius=5, pos=win_center, **circle_params)
 mem_probe = visual.Circle(radius=STIM_SIZE/3, **circle_params)
 
 n_stimuli = 6
@@ -270,13 +270,13 @@ def drift_correct():
     """
     reset_port()
     core.wait(0.2)
-    # Draw the fixation dot
-    fixation.draw()
+    # Draw a fixation dot
+    drift_fixation.draw() # TODO test this
     win.flip()
     send_trigger('drift_correct_start')
     reset_port()
     # Do the drift correction
-    fix_pos = np.int64(dc.origin_psychopy2eyelink(fixation.pos))
+    fix_pos = np.int64(dc.origin_psychopy2eyelink(drift_fixation.pos))
     el.drift_correct(fix_pos)
     send_trigger('drift_correct_end')
     reset_port()
@@ -444,10 +444,22 @@ def run_exp():
         instructions(line)
 
     # Run the trials
+    rec_start_time = core.monotonicClock.getTime()
+    rec_number = 1 # Which recording number is this?
     for trial in trials:
         status = run_trial(trial)
+        trials.addData('rec_number', rec_number) # TODO check this
         if status == END_EXPERIMENT:
             break
+        # TODO check whether this works
+        # Prompt to start a new MEG recording every so often
+        curr_time = core.monotonicClock.getTime()
+        if curr_time > (rec_start_time + REC_LENGTH):
+            show_text('--- Start new MEG recording ---')
+            event.waitKeys(keyList=['return'], maxWait=9999)
+            show_text('Ready?')
+            event.waitKeys(keyList=['return'], maxWait=9999)
+            drift_correct() 
 
     # Save the data
     fname = '{}/{}.csv'.format(LOG_DIR, START_TIME)
