@@ -1,22 +1,10 @@
 Experiment script
-- feedback after each trial
 - do we have enough incorrect responses?
     - Longer pause before memory probe?
     - perceptual mask?
 - automatic drift correction once every couple minutes
     - different fixation during drift correction
-- responses on two fingers of the right hand (not two hands)
-- insert pauses for recording multiple trials
-
 
 Analysis
-- Artifact rejection
-    - Figure out pipeline for manual rejection and ICA
 - Decode direction of upcoming saccade
 
-
-Other
-- Experimenter checklist
-    - EOG1 - Horiz
-    - EOG2 - Vert
-    - ECG3 - EKG
