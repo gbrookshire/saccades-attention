@@ -20,7 +20,6 @@ Tests
     - Is the task too hard?
     - Do people actually look at all the items?
         - Do we need to add a perceptual task
-- MEG pilot: Test whether stimuli are discriminable using classifiers
 
 """
 
