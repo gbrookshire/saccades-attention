@@ -12,9 +12,7 @@ Design
 # TODO
 """
 Features to add
-- Different stimulus during drift correction
 - Response with 2 fingers on the right hand (not 2 hands)
-- Message to start a new MEG recording file
 
 Tests
 - Check all TODO tags
