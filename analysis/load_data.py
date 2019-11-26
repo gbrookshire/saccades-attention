@@ -45,17 +45,17 @@ def load_data(n):
     behav = pd.read_csv(behav_fname) 
     
     # Get the fixation events
-    fix_info, events = fixation_events.get_fixation_events(meg_events,
-                                                           eye_data,
-                                                           behav)
-    # Look at the beginning of the fixation
-    row_sel = events[:,2] == expt_info['event_dict']['fix_on']
-    fix_events = events[row_sel, :]
-    # Don't look at multiple fixations to the same object
-    new_obj = np.diff(fix_info['closest_stim']) != 0
-    new_obj = np.hstack((True, new_obj)) # First fixation is to a new object
-    fix_info = fix_info.loc[new_obj]
-    fix_events = fix_events[new_obj,:]
+    fix_info, fix_events = fixation_events.get_fixation_events(meg_events,
+                                                               eye_data,
+                                                               behav)
+    # # Look at the beginning of the fixation
+    # row_sel = fix_events[:,2] == expt_info['event_dict']['fix_on']
+    # fix_events = fix_events[row_sel, :]
+    # # Don't look at multiple fixations to the same object
+    # new_obj = np.diff(fix_info['closest_stim']) != 0
+    # new_obj = np.hstack((True, new_obj)) # First fixation is to a new object
+    # fix_info = fix_info.loc[new_obj]
+    # fix_events = fix_events[new_obj,:]
 
     # Put all the data into a dictionary
     data = {}

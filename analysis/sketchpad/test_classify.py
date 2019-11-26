@@ -22,8 +22,19 @@ import load_data
 # Which subject to analyze
 n = 1
 
+expt_info = json.load(open('expt_info.json'))
+
 # Load the data
 d = load_data.load_data(n)
+
+# Select fixation onsets
+row_sel = d['fix_events'][:,2] == expt_info['event_dict']['fix_on']
+d['fix_events'] = d['fix_events'][row_sel, :]
+# Select fixations to a new target
+new_obj = np.diff(d['fix_info']['closest_stim']) != 0
+new_obj = np.hstack((True, new_obj)) # First fixation is to a new object
+d['fix_info'] = d['fix_info'].loc[new_obj]
+d['fix_events'] = d['fix_events'][new_obj,:]
 
 # Epoch the data
 tmin = -0.4
