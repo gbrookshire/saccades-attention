@@ -11,5 +11,10 @@ Analysis
     and the corresponding dipole movements, we should ensure that the
     *previous* eye movement is non systematically related to the next
     one. Maybe include a term in the model for the previous movement 
-    direction?
-
+    direction? 
+- Inverted encoding model (or Forward encoding model) for eye movements
+- Contrast decoding of first fixation to an object, with decoding
+of the last fixation to an object.
+    - The expectations/predictions/priors are weaker for the first 
+    fixation, so this analysis should be informative about predictions.
+    - But we probably won't have enough trials to do this
