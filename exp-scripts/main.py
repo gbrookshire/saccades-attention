@@ -13,11 +13,12 @@ Design
 """
 Features to add
 - Response with 2 fingers on the right hand (not 2 hands)
+- Perceptual mask
 
 Tests
 - Check all TODO tags
 - Get a couple behavioral pilots
-    - Is the task too hard?
+    - Is the task too easy?
     - Do people actually look at all the items?
         - Do we need to add a perceptual task
 
@@ -45,7 +46,7 @@ from lattice import lattice
 ############
 
 # Set to False for testing without triggers, eye-tracker, etc
-IN_MEG_LAB = True
+IN_MEG_LAB = False
 
 START_TIME = datetime.datetime.now().strftime('%Y-%m-%d-%H%M')
 RT_CLOCK = core.Clock() # for measuring response times
@@ -137,6 +138,7 @@ else:
 
     def eye_pos():
         pos = win_center
+        pos = np.int64(dc.origin_psychopy2eyelink(pos))
         return pos
 
     def send_trigger(trig):
