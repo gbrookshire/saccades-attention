@@ -1,9 +1,7 @@
 Experiment script
-- do we have enough incorrect responses?
-    - Longer pause before memory probe?
-    - perceptual mask?
 - automatic drift correction once every couple minutes
     - different fixation during drift correction
+- Initial practice session?
 
 Analysis
 - Decode direction of upcoming saccade
@@ -18,3 +16,8 @@ of the last fixation to an object.
     - The expectations/predictions/priors are weaker for the first 
     fixation, so this analysis should be informative about predictions.
     - But we probably won't have enough trials to do this
+- Make sure we don't find spurious results based on sequential dependence
+    - If someone always looks from the car to the cat, then we'll be able
+    to decode before the saccade based on the current fixation.
+    - We can take care of this by balancing the transition matrix, and 
+    tossing extra trials.
