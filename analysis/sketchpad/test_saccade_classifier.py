@@ -2,6 +2,11 @@
 Classify the direction of the upcoming saccade
 """
 
+# TODO
+# Cross-correlation in saccade direction?
+# - This will make sure that successful classification isn't due to 
+#   post-saccade effects + multiple saccades in the same direction.
+
 import os 
 import json
 import numpy as np
@@ -10,7 +15,8 @@ import mne
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 
-from sklearn.linear_model import LinearRegression, LinearRegressionCV
+from sklearn.linear_model import Lasso, LassoCV
+from sklearn.linear_model import ElasticNet, ElasticNetCV
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import cross_validate
 
@@ -32,8 +38,8 @@ row_sel = d['fix_events'][:,2] == expt_info['event_dict']['fix_off']
 fix_offset_events = d['fix_events'][row_sel, :]
 
 # Epoch the data
-tmin = -0.4
-tmax = 0.4
+tmin = -1.0
+tmax = 0.5
 picks = mne.pick_types(d['raw'].info,
                        meg=True, eeg=False, eog=False,
                        stim=False, exclude='bads')
@@ -54,6 +60,8 @@ epochs = mne.Epochs(d['raw'], fix_offset_events,
 d['ica'].apply(epochs)
 
 # Resample after epoching to make sure trigger times are correct
+# Time with n_jobs=1: 54.1 s 
+# Time with n_jobs=3: 46.9 s
 epochs.resample(200, n_jobs=3)
 
 # # Plot saccade activity
@@ -67,28 +75,27 @@ epochs.resample(200, n_jobs=3)
 fix = d['fix_info'].copy()
 onsets = fix['start'][1:].to_numpy()
 offsets = fix['end'][:-1].to_numpy()
-isi = onsets - offsets
-isi = isi / 1000
-plausible_saccade = isi < 0.15
-plausible_saccade = np.hstack((plausible_saccade, [None]))
-fix['saccade'] = pd.Series(plausible_saccade, index=fix.index)
+saccade_dur = onsets - offsets
+saccade_dur = saccade_dur / 1000
+saccade_dur = np.hstack((saccade_dur, np.inf))
+plausible_saccade = saccade_dur < 0.15
 x_change = fix['x_avg'][1:].to_numpy() - fix['x_avg'][:-1].to_numpy()
 x_change = np.hstack((x_change, np.nan))
-fix['x_change'] = pd.Series(x_change, index=fix.index)
 y_change = fix['y_avg'][1:].to_numpy() - fix['y_avg'][:-1].to_numpy()
 y_change = np.hstack((y_change, np.nan))
+fix['x_change'] = pd.Series(x_change, index=fix.index)
+fix['saccade_dur'] = pd.Series(saccade_dur, index=fix.index)
+fix['saccade'] = pd.Series(plausible_saccade, index=fix.index)
 fix['y_change'] = pd.Series(y_change, index=fix.index)
 
 # Get data structures for running regressions
 meg_data = epochs.get_data() # Trial x Channel x Time 
 fix = fix.iloc[epochs.selection] # Toss trials that have been marked as "bad"
+scaler = StandardScaler()
 
 # Only keep trials that are a real saccade
 meg_data = meg_data[fix['saccade'] == True, :]
 fix = fix.loc[fix['saccade'] == True]
-
-
-scaler = StandardScaler()
 
 # Toss weird trials (Should have been done above)
 gfp = np.std(meg_data, axis=1) # Global field power
@@ -102,22 +109,25 @@ fix = fix.loc[~bad_trials]
 # Separately predict movement in the x and y directions 
 # Or look at sin and cos of the angle of movement?
 # - Plus the distance of the saccade
-x_change = fix['x_change']
-y_change = fix['y_change']
+x_change = fix['x_change'].to_numpy()
+y_change = fix['y_change'].to_numpy()
 
 # Details of the classifier calls
-cv_params= {'cv': 5, # Cross-validataion
+# Cross-validataion params
+cv_params= {'cv': 5, 
             'n_jobs': 3}
-            #'scoring': 'accuracy'}
-cv_reg_params = {#'penalty': 'l1', # CV of regularization parameter
-                 #'solver': 'saga',
-                 #'multi_class': 'multinomial',
-                 'max_iter': 1e4}
+# CV of regularization params
+cv_reg_params = {'selection': 'random', 
+                 'max_iter': 1e5}
+# Main classifier
+clf_params = {'selection': 'random', # Speeds up model fitting
+              'max_iter': 1e4}
 
 
+"""
 # Find the best values of C/lambda/alpha
 # Only run this once -- not separately for every subject/timepoint
-t_cv = 0.1 # Time-point at which we're cross-validating
+t_cv = -0.05 # Time-point at which we're cross-validating
 i_time = np.nonzero(epochs.times >= t_cv)[0][0]
 x = meg_data[:,:,i_time]
 x = scaler.fit_transform(x)
@@ -125,20 +135,18 @@ clf = LassoCV( verbose=1, **cv_reg_params, **cv_params)
 clf.fit(x, x_change)
 print(clf.alpha_) # Show the regularization parameter
 print(np.sum(clf.coef_ != 0)) # Avg number of nonzero coefs
-print(clf.score(x, x_change))
+print(clf.score(x, x_change)) # R^2
+plt.plot(x_change, clf.predict(x), 'o', alpha=0.5)
+"""
 
-
-clf_params = {#'penalty': 'l1', # Main classifier
-              #'solver': 'liblinear',
-              #'multi_class': 'ovr',
-              'max_iter': 1e4}
-
-# Set up the classifier
-clf = Lasso(alpha=clf.alpha_, **clf_params)
+# Set up the main classifier
+alpha = 3.57 # Identified using CV above
+clf = Lasso(alpha=alpha, **clf_params)
 
 results = []
 accuracy = []
 for i_time in tqdm(range(epochs.times.size)):
+    #######np.random.shuffle(x_change)
     # Select data at this time-point
     x = meg_data[:,:,i_time] 
     # Standardize the data within each MEG channel
@@ -151,16 +159,21 @@ for i_time in tqdm(range(epochs.times.size)):
     results.append(res)
     accuracy.append(res['test_score'].mean())
 
+
 # Plot the results
-plt.plot(epochs.times, accuracy)
-# plt.plot([epochs.times.min(), epochs.times.max()], # Mark chance level
-#          np.array([1, 1]) * (1 / len(np.unique(labels))),
-#          '--k')
-plt.ylabel('Accuracy')
-plt.xlabel('Time (s)')
+f, (a0, a1) = plt.subplots(2, 1, gridspec_kw={'height_ratios': [3, 1]})
+
+# Plot classifier accuracy over time
+a0.plot(epochs.times, accuracy)
+a0.set_ylabel('$R^2$')
+
+# Plot saccade durations
+bins = np.arange(epochs.times[0], epochs.times[-1], step=0.01) 
+a1.hist(fix['saccade_dur'], bins=bins)
+a1.set_xlabel('Time (s)')
+a1.set_ylabel('Count')
+
+plt.tight_layout()
 plt.show()
-
-
-
 
 
