@@ -86,6 +86,7 @@
   - V: Validate
   - ESC: Exit calibration
 - Go through instructions
+- Run a few trials as a test, then quit the script and start over
 
 ## Data collection
 - Check data quality, note down on the info sheet
