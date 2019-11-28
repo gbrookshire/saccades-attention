@@ -4,7 +4,7 @@ Fall 2019
 G.Brookshire@bham.ac.uk
 
 Design
-- Show the same 6 stimuli in random locations on every trial
+- Show 4 randomly selected stims (from 6 total stims) in random locations
 - At the end of each trial, probe memory
     - Ask which of 2 stimuli was present at a marked location
 """
@@ -13,19 +13,18 @@ Design
 """
 Features to add
 - Response with 2 fingers on the right hand (not 2 hands)
-- Perceptual mask
 
 Tests
 - Check all TODO tags
-- Get a couple behavioral pilots
+- Initial data analysis
     - Is the task too easy?
     - Do people actually look at all the items?
-        - Do we need to add a perceptual task
 
 """
 
 # Standard libraries
 import os
+import json
 import datetime
 import numpy as np
 import random
@@ -100,10 +99,8 @@ with open('instruct.txt') as f:
 # Initialize external equipment
 if IN_MEG_LAB:
     refresh_rate = 120.0
-    # Initialize parallel port
     port = parallel.ParallelPort(address=0xBFF8)
     port.setData(0)
-    # Initialize eye-tracker
     el = eye_wrapper.SimpleEyelink(SCREEN_RES)
     el.startup()
 
@@ -131,8 +128,7 @@ if IN_MEG_LAB:
         port.setData(0)
         core.wait(wait_time)
 
-else:
-    # Dummy functions for dry-runs on my office desktop
+else: # Dummy functions for dry-runs on my office desktop 
     refresh_rate = 60.0
     el = eye_wrapper.DummyEyelink()
 
@@ -152,10 +148,9 @@ else:
 # Window and Stimuli #
 ######################
 
-win_size = SCREEN_RES
 win_center = (0, 0)
 
-win = visual.Window(win_size,
+win = visual.Window(SCREEN_RES,
                     monitor='propixxMonitor',
                     fullscr=FULL_SCREEN,
                     color=COLORS['grey'], colorSpace=COLORS['cs'],
@@ -177,6 +172,11 @@ text_stim = visual.TextStim(pos=win_center, text='hello', # For instructions
 fixation = visual.Circle(radius=10, pos=win_center, **circle_params)
 drift_fixation = visual.Circle(radius=5, pos=win_center, **circle_params)
 mem_probe = visual.Circle(radius=STIM_SIZE/3, **circle_params)
+noise_mask = visual.NoiseStim(size=(2**10, 2**10),
+                noiseElementSize=4,
+                noiseType='Uniform',
+                contrast=1.0,
+                **stim_params)
 
 n_stimuli = 6
 pic_stims = []
@@ -270,7 +270,7 @@ def drift_correct():
     reset_port()
     core.wait(0.2)
     # Draw a fixation dot
-    drift_fixation.draw() # TODO test this
+    drift_fixation.draw() # TODO Is this working?
     win.flip()
     send_trigger('drift_correct_start')
     reset_port()
@@ -307,19 +307,18 @@ def run_trial(trial):
     send_trigger('fixation')
     reset_port()
     t_fix = core.monotonicClock.getTime() # Start a timer
-    core.wait(0.2)
-
+    core.wait(0.2) 
     while True:
-        # Check for experimenter control to end the expt early
+        # Check for experimenter control to end or correct drift
         if experimenter_control() == END_EXPERIMENT:
-            return END_EXPERIMENT
-
+            return END_EXPERIMENT 
         d = euc_dist(dc.origin_eyelink2psychopy(eye_pos()), win_center)
+        t_now = core.monotonicClock.getTime() # TODO make sure this works
         # Reset timer if not looking at fixation
         if (d > FIX_THRESH):
-            t_fix = core.monotonicClock.getTime()
-        # If they are looking at the fixation, have they looked long enough?
-        elif (core.monotonicClock.getTime() - t_fix) > FIX_DUR:
+            t_fix = t_now
+        # If they are looking at the fixation, and have looked long enough
+        elif (t_now - t_fix) > FIX_DUR:
             break
         # If they are looking, but haven't held fixation long enough
         else:
@@ -345,8 +344,14 @@ def exploration_screen(trial):
     send_trigger('explore')
     reset_port()
     core.wait(EXPLORE_DUR)
+    # Show a blank screen
     win.flip(clearBuffer=True)
-    core.wait(0.5)
+    core.wait(0.1)
+    # Show the noise mask
+    noise_mask.updateNoise()
+    noise_mask.draw()
+    win.flip()
+    core.wait(0.7)
 
 
 def show_memory_trial(trial):
@@ -390,11 +395,10 @@ def show_memory_trial(trial):
     else:
         send_trigger('response')
         reset_port()
-        keypress, rt = r[0] #TODO Make sure responses are logging correctly
+        keypress, rt = r[0]
         trials.addData('resp', keypress)
         trials.addData('rt', rt)
-        # Feedback # TODO Check whether this works
-        # Check if answer was correct
+        # Feedback - Tell participant whether their response was correct
         if (trial['mem_target_loc'] == 'right') & (keypress == KEYS['right']):
             feedback_text = 'Correct'
         elif (trial['mem_target_loc'] == 'left') & (keypress == KEYS['left']):
@@ -404,6 +408,7 @@ def show_memory_trial(trial):
 
     show_text(feedback_text)
     core.wait(0.5) 
+    trials.addData('feedback', feedback_text)
 
 
 def eye_pos_check():
@@ -447,18 +452,20 @@ def run_exp():
     rec_number = 1 # Which recording number is this?
     for trial in trials:
         status = run_trial(trial)
-        trials.addData('rec_number', rec_number) # TODO check this
         if status == END_EXPERIMENT:
             break
         # TODO check whether this works
         # Prompt to start a new MEG recording every so often
+        trials.addData('rec_number', rec_number)
         curr_time = core.monotonicClock.getTime()
         if curr_time > (rec_start_time + REC_LENGTH):
-            show_text('--- Start new MEG recording ---')
+            msg = f"--- Save MEG recording {rec_number} ---"
+            show_text(msg)
             event.waitKeys(keyList=['return'], maxWait=9999)
             show_text('Ready?')
             event.waitKeys(keyList=['return'], maxWait=9999)
             drift_correct() 
+            rec_number += 1
 
     # Save the data
     fname = '{}/{}.csv'.format(LOG_DIR, START_TIME)
