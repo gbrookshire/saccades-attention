@@ -166,6 +166,8 @@ for i_time in tqdm(range(epochs.times.size)):
     accuracy.append(res['test_score'].mean())
 
 
+plt.close('all')
+
 # Plot the results
 f, (a0, a1) = plt.subplots(2, 1, gridspec_kw={'height_ratios': [3, 1]})
 
@@ -175,9 +177,20 @@ a0.set_ylabel('$R^2$')
 
 # Plot saccade durations
 bins = np.arange(epochs.times[0], epochs.times[-1], step=0.01) 
-a1.hist(fix['saccade_dur'], bins=bins)
+
+# Plot proportion of trials that fall during a saccade
+hist, bin_edges = np.histogram(fix['saccade_dur'],
+                               bins=bins)
+hist = np.cumsum(hist)
+hist = (hist.max() - hist) / hist.max()
+hist[bins[:-1] < 0] = 0
+plt.step(bins[:-1], hist, where='post')
 a1.set_xlabel('Time (s)')
-a1.set_ylabel('Count')
+a1.set_ylabel('P(saccade)')
+
+## Plot histogram of saccade durations
+#a1.hist(fix['saccade_dur'], bins=bins)
+#a1.set_ylabel('Count')
 
 plt.tight_layout()
 plt.show()
