@@ -94,7 +94,7 @@ y_change = fix['y_avg'][1:].to_numpy() - fix['y_avg'][:-1].to_numpy()
 y_change = np.hstack((y_change, np.nan))
 saccade_movement = x_change + (y_change * 1j)
 saccade_angle = np.angle(saccade_movement)
-saccade_dist = np.abs(saccade_angle) 
+saccade_dist = np.abs(saccade_movement) 
 
 new_col = lambda col: pd.Series(col, index=fix.index)
 fix['x_change'] = new_col(x_change)
@@ -130,7 +130,7 @@ def acorr(x, **kwargs):
 
 plt.figure()
 
-plt.subplot(2, 1, 1)
+# plt.subplot(2, 1, 1)
 acorr(fix['x_change'], label='Horiz') 
 acorr(fix['y_change'], label='Vert')
 plt.plot([0, maxlag], [0, 0], '-k')
@@ -140,17 +140,37 @@ plt.xlabel('Lag')
 plt.ylabel('Corr')
 plt.legend()
 
-plt.subplot(2, 1, 2)
-acorr(fix['saccade_angle'], label='Angle')
-acorr(fix['saccade_dist'], label='Distance')
-plt.plot([0, maxlag], [0, 0], '-k')
-plt.xticks([0, 10, 20])
-plt.xlim(0, maxlag)
-plt.xlabel('Lag')
-plt.ylabel('Corr')
-plt.legend()
-
-plt.tight_layout()
-
 # Negative autocorrelations at low lags indicate that people are
 # fixating back and forth
+# How can we make sure that these autocorrelations are removed?
+# Randomly drop trials until they disappear?
+
+# Do people switch back and forth between stimuli?
+# If so, then we should see a concentration of points along the line
+# through the origin with slope = -1.
+# But maybe a negative correlation here just indicates that subjects
+# are moving their eyes to a new object. What's the alternative? If there
+# was a correlation of r=0, that would indicate random eye movements.
+# But there are only a few images on the screen, so people have to saccade
+# back and forth between them. 
+from scipy import stats
+plt.clf()
+fields = ['x_change', 'y_change', 'saccade_dist']
+for i_plot, var in enumerate(fields):
+    plt.subplot(1, 3, i_plot + 1)
+    # Two copies of the same data, lagged by one item
+    v1 = fix[var].iloc[1:]
+    v2 = fix[var].iloc[:-1]
+    # Get the line of best fit
+    b = np.polynomial.polynomial.polyfit(v1, v2, deg=1)
+    stat = stats.pearsonr(v1, v2)
+    # Plot the correlation line
+    plt.plot(v1, b[0] + b[1] * v1, '-r')
+    # Plot the subsequent saccades
+    plt.plot(v1, v2, 'o', alpha=0.1)
+    plt.title(var)
+    text = f"r = {stat[0]:.2f}\np = {stat[1]:1.0e}"
+    plt.text(v1.min(), v1.min(), text,
+             horizontalalignment='left',
+             verticalalignment='bottom')
+plt.tight_layout()
