@@ -6,9 +6,6 @@ G.Brookshire@bham.ac.uk
 
 # TODO
 """
-Features to add
-- Response with 2 fingers on the right hand (not 2 hands)
-
 Tests
 - Check all TODO tags
 - Initial data analysis
@@ -55,8 +52,8 @@ TRIGGERS = {'response': 1,
 KEYS = {'break': 'escape',
         'drift': 'return',
         'accept': 'space',
-        'left': '4',
-        'right': '7'}
+        'left': '7',
+        'right': '8'}
 
 COLORS = {'cs': 'rgb255', # ColorSpace
           'white': [255, 255, 255],
@@ -123,7 +120,7 @@ if IN_MEG_LAB:
         port.setData(0)
         core.wait(wait_time)
 
-else: # Dummy functions for dry-runs on my office desktop 
+else: # Dummy functions for dry-runs on my office desktop
     refresh_rate = 60.0
     el = eye_wrapper.DummyEyelink()
 
@@ -302,11 +299,11 @@ def run_trial(trial):
     send_trigger('fixation')
     reset_port()
     t_fix = core.monotonicClock.getTime() # Start a timer
-    core.wait(0.2) 
+    core.wait(0.2)
     while True:
         # Check for experimenter control to end or correct drift
         if experimenter_control() == END_EXPERIMENT:
-            return END_EXPERIMENT 
+            return END_EXPERIMENT
         d = euc_dist(dc.origin_eyelink2psychopy(eye_pos()), win_center)
         t_now = core.monotonicClock.getTime() # TODO make sure this works
         # Reset timer if not looking at fixation
@@ -402,7 +399,7 @@ def show_memory_trial(trial):
             feedback_text = 'Incorrect'
 
     show_text(feedback_text)
-    core.wait(0.5) 
+    core.wait(0.5)
     trials.addData('feedback', feedback_text)
 
 
@@ -459,7 +456,7 @@ def run_exp():
             event.waitKeys(keyList=['return'], maxWait=9999)
             show_text('Ready?')
             event.waitKeys(keyList=['return'], maxWait=9999)
-            drift_correct() 
+            drift_correct()
             rec_number += 1
 
     # Save the data
