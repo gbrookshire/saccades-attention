@@ -21,3 +21,4 @@ of the last fixation to an object.
     to decode before the saccade based on the current fixation.
     - We can take care of this by balancing the transition matrix, and 
     tossing extra trials.
+- Does alpha power topography predict saccade direction?
