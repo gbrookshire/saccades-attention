@@ -2,11 +2,6 @@
 Attention and preprocessing before a saccade
 Fall 2019
 G.Brookshire@bham.ac.uk
-
-Design
-- Show 4 randomly selected stims (from 6 total stims) in random locations
-- At the end of each trial, probe memory
-    - Ask which of 2 stimuli was present at a marked location
 """
 
 # TODO
