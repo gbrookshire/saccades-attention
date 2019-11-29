@@ -72,3 +72,85 @@ plt.ylabel('Density')
 plt.xlim(0, 0.150)
 
 plt.show()
+
+
+# Look for serial dependence in saccade directions
+
+# Get the direction of the next saccade
+# Check the timing between fixations to make sure
+# that the next item on the list is actually the next fixation.
+import numpy as np
+import pandas as pd
+fix = d['fix_info'].copy()
+onsets = fix['start'][1:].to_numpy()
+offsets = fix['end'][:-1].to_numpy()
+saccade_dur = onsets - offsets
+saccade_dur = saccade_dur / 1000
+saccade_dur = np.hstack((saccade_dur, np.inf))
+plausible_saccade = saccade_dur < 0.15
+x_change = fix['x_avg'][1:].to_numpy() - fix['x_avg'][:-1].to_numpy()
+x_change = np.hstack((x_change, np.nan))
+y_change = fix['y_avg'][1:].to_numpy() - fix['y_avg'][:-1].to_numpy()
+y_change = np.hstack((y_change, np.nan))
+saccade_movement = x_change + (y_change * 1j)
+saccade_angle = np.angle(saccade_movement)
+saccade_dist = np.abs(saccade_angle) 
+
+new_col = lambda col: pd.Series(col, index=fix.index)
+fix['x_change'] = new_col(x_change)
+fix['y_change'] = new_col(y_change)
+fix['saccade_dur'] = new_col(saccade_dur)
+fix['saccade'] = new_col(plausible_saccade)
+fix['saccade_angle'] = new_col(saccade_angle)
+fix['saccade_dist'] = new_col(saccade_dist) 
+
+# Only keep saccades to new objects
+# To do this, check whether the next fixated stim is different
+new_object = np.diff(fix['closest_loc']) != 0
+new_object = np.hstack([new_object, False])
+fix['new_object'] = new_col(new_object)
+
+# Only keep real saccades
+fix = fix.loc[fix['saccade']]
+# Only keep saccades to a new object
+fix = fix.loc[fix['new_object']]
+
+
+# Plot all the autocorrelations
+
+maxlag = 20
+
+def acorr(x, **kwargs):
+    plt.acorr(x,
+              maxlags=maxlag, 
+              detrend=lambda x: x - x.mean(),
+              usevlines=False,
+              linestyle='-',
+              **kwargs)
+
+plt.figure()
+
+plt.subplot(2, 1, 1)
+acorr(fix['x_change'], label='Horiz') 
+acorr(fix['y_change'], label='Vert')
+plt.plot([0, maxlag], [0, 0], '-k')
+plt.xticks([0, 10, 20])
+plt.xlim(0, maxlag)
+plt.xlabel('Lag')
+plt.ylabel('Corr')
+plt.legend()
+
+plt.subplot(2, 1, 2)
+acorr(fix['saccade_angle'], label='Angle')
+acorr(fix['saccade_dist'], label='Distance')
+plt.plot([0, maxlag], [0, 0], '-k')
+plt.xticks([0, 10, 20])
+plt.xlim(0, maxlag)
+plt.xlabel('Lag')
+plt.ylabel('Corr')
+plt.legend()
+
+plt.tight_layout()
+
+# Negative autocorrelations at low lags indicate that people are
+# fixating back and forth
