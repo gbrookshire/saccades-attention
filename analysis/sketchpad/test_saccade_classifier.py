@@ -1,11 +1,17 @@
 """
 Classify the direction of the upcoming saccade
+
+This is actually a Forward Encoding Model, because we're predicting
+saccade location based on brain activity. (Is that right?)
+
 """
 
 # TODO
 # Cross-correlation in saccade direction?
 # - This will make sure that successful classification isn't due to 
 #   post-saccade effects + multiple saccades in the same direction.
+# When did the previous saccade happen?
+# Make saccade histogram into P(saccade) for each time point
 
 import os 
 import json
