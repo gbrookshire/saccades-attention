@@ -4,16 +4,6 @@ Fall 2019
 G.Brookshire@bham.ac.uk
 """
 
-# TODO
-"""
-Tests
-- Check all TODO tags
-- Initial data analysis
-    - Is the task too easy?
-    - Do people actually look at all the items?
-
-"""
-
 # Standard libraries
 import os
 import json
@@ -262,7 +252,7 @@ def drift_correct():
     reset_port()
     core.wait(0.2)
     # Draw a fixation dot
-    drift_fixation.draw() # TODO Is this working?
+    drift_fixation.draw()
     win.flip()
     send_trigger('drift_correct_start')
     reset_port()
@@ -305,7 +295,7 @@ def run_trial(trial):
         if experimenter_control() == END_EXPERIMENT:
             return END_EXPERIMENT
         d = euc_dist(dc.origin_eyelink2psychopy(eye_pos()), win_center)
-        t_now = core.monotonicClock.getTime() # TODO make sure this works
+        t_now = core.monotonicClock.getTime()
         # Reset timer if not looking at fixation
         if (d > FIX_THRESH):
             t_fix = t_now
@@ -446,14 +436,13 @@ def run_exp():
         status = run_trial(trial)
         if status == END_EXPERIMENT:
             break
-        # TODO check whether this works
         # Prompt to start a new MEG recording every so often
         trials.addData('rec_number', rec_number)
         curr_time = core.monotonicClock.getTime()
         if curr_time > (rec_start_time + REC_LENGTH):
-            msg = f"--- Save MEG recording {rec_number} ---"
-            show_text(msg)
+            show_text(f"--- Save MEG recording {rec_number} ---")
             event.waitKeys(keyList=['return'], maxWait=9999)
+            rec_start_time = curr_time # Reset the clock
             show_text('Ready?')
             event.waitKeys(keyList=['return'], maxWait=9999)
             drift_correct()
