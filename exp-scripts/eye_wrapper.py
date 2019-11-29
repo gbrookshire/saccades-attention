@@ -2,12 +2,16 @@
 """
 
 import datetime
+from time import sleep
+
 try:
     import pylink as pl
 except ImportError:
     print('pylink not found')
 
 class DummyEyelink(object):
+    """ Allows for testing scripts without using the Eyelink
+    """
     def __init__(self, *args, **kwargs):
         pass
     def startup(self):
@@ -16,6 +20,8 @@ class DummyEyelink(object):
         pass
     def shutdown(self):
         pass
+    def drift_correct(self, center_pos):
+        sleep(5)
 
 class SimpleEyelink(object):
 
