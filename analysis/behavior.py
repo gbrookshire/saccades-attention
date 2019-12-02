@@ -6,6 +6,9 @@ import json
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import plot_setup
+
+plot_setup.setup()
 
 expt_info = json.load(open('expt_info.json'))
 subject_info = pd.read_csv(expt_info['data_dir'] + 'subject_info.csv') 
