@@ -3,14 +3,10 @@ Load the data for one participant
 """
 
 import json
-import numpy as np
 import pandas as pd
 import mne
-#import matplotlib.pyplot as plt
-#from tqdm import tqdm
 
 import eyelink_parser 
-import stim_positions
 import fixation_events
 
 expt_info = json.load(open('expt_info.json'))
