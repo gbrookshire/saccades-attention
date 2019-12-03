@@ -139,6 +139,19 @@ def identify_ica(raw):
     # 
 
 
+def identify_gfp(meg_data, sd):
+    """ Exclude trials with high Global Field Power
+
+    meg_data: Output of Epochs.get_data()
+    sd: Exclude trials with any GFP values above this many SDs
+    """
+    gfp = np.std(meg_data, axis=1) # Global field power
+    max_gfp = np.max(gfp, axis=1) # Max per trial
+    zscore = lambda x: (x - x.mean()) / (x.std()) # z-score a vector
+    bad_trials = zscore(max_gfp) > 4
+    return bad_trials
+
+
 def main():
     """ Identify artifacts for one participant
     """
