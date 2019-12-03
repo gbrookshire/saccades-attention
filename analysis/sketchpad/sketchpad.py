@@ -141,6 +141,15 @@ mne.viz.plot_compare_evokeds({'explore': evoked},
 
 evoked.plot_joint()
 
+# # Plot activity evoked by an eye movement
+# evoked = epochs.copy().apply_baseline((None, 0)).average()
+# evoked.plot(spatial_colors=True)
+# # evoked.plot(gfp='only')
+# # times = np.arange(-0.05, 0.2, 0.05)
+# # evoked.plot_topomap(times=times, ch_type='grad')
+# # evoked.plot_topomap(times=times, ch_type='mag')
+
+
 
 ###############
 # Eye-tracker #
