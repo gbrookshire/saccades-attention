@@ -18,7 +18,6 @@ import eyelink_parser
 import stim_positions
 import fixation_events
 import load_data
-import artifacts
 
 expt_info = json.load(open('expt_info.json'))
 scaler = StandardScaler()
@@ -51,7 +50,7 @@ def preprocess(n):
     row_sel = d['fix_events'][:,2] == expt_info['event_dict']['fix_on']
     d['fix_events'] = d['fix_events'][row_sel, :]
     
-    # Select fixations to a new object
+    # Select fixations to a new target
     new_obj = np.diff(d['fix_info']['closest_stim']) != 0
     new_obj = np.hstack((True, new_obj)) # First fixation is to a new object
     d['fix_info'] = d['fix_info'].loc[new_obj]
@@ -80,16 +79,19 @@ def preprocess(n):
     d['ica'].apply(epochs)
     
     # Resample after epoching to make sure trigger times are correct
-    epochs.resample(200, n_jobs=3)
+    epochs.resample(200)
     
     # Prep data structures for running classifiers
     meg_data = epochs.get_data() # Trial x Channel x Time
-    fix = fix.iloc[epochs.selection] # Toss manually-marked bad trials 
     labels = d['fix_info']['closest_stim'] # Stimulus to decode
     labels = labels.astype(int).to_numpy()
+    labels = labels[epochs.selection] # Only keep retained trials
     
     # Toss weird trials (Should have been done above)
-    bad_trials = artifacts.identify_gfp(meg_data, sd=4)
+    gfp = np.std(meg_data, axis=1) # Global field power
+    max_gfp = np.max(gfp, axis=1) # Max per trial
+    zscore = lambda x: (x - x.mean()) / (x.std()) # z-score a vector
+    bad_trials = zscore(max_gfp) > 4
     meg_data = meg_data[~bad_trials,:,:]
     labels = labels[~bad_trials]
 
@@ -175,7 +177,7 @@ def _timing_test_cv(n_jobs=3):
     x = meg_data[:,:,i_time]
     x = scaler.fit_transform(x)
     clf = LogisticRegression(C=0.05, **clf_params)
-    %timeit cross_validate(clf, x, labels, return_estimator=True, **cv_params)
+    #%timeit cross_validate(clf, x, labels, return_estimator=True, **cv_params)
 
 
 if __name__ == '__main__':
