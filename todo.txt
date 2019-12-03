@@ -1,7 +1,4 @@
 Experiment script
-- automatic drift correction once every couple minutes
-    - different fixation during drift correction
-- Initial practice session?
 
 Analysis
 - Decode direction of upcoming saccade
