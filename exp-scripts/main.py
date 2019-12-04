@@ -27,7 +27,7 @@ from lattice import lattice
 ############
 
 # Set to False for testing without triggers, eye-tracker, etc
-IN_MEG_LAB = False
+IN_MEG_LAB = True
 
 START_TIME = datetime.datetime.now().strftime('%Y-%m-%d-%H%M')
 RT_CLOCK = core.Clock() # for measuring response times
