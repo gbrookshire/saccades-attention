@@ -90,6 +90,8 @@ def plot_results(acc, rt):
     f.set_size_inches(6, 2)
     f.tight_layout()
     plt.show()
+    fname = f"{expt_info['data_dir']}plots/behavior/acc_rt.pdf"
+    plt.savefig(fname)
 
 
 if __name__ == '__main__':
