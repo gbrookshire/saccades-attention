@@ -1,4 +1,6 @@
-% MEG checklist
+---
+title: MEG checklist
+...
 
 # Prepare room
 - https://www.chbh.bham.ac.uk/wiki/index.php/Checklist_to_run_an_MEG_Recording
@@ -106,8 +108,11 @@
   - Or whenever is necessary, by pressing RETURN.
 
 # Back up data
-- `cd /data/neuro-data/<PROJECT_DIR>/`
-- `scp -r <SUBJECT_NAME> brookshg@bluebear.bham.ac.uk:/rds/projects/b/brookshg-saccades-attention/data/raw/`
+```
+cd /data/neuro-data/<PROJECT_DIR>/
+scp -r <SUBJECT_NAME> \
+    brookshg@bluebear.bham.ac.uk:/rds/projects/b/brookshg-saccades-attention/data/raw/
+```
 - Bluebear project name: saccades-attention
 
 # Cleaning up
@@ -136,3 +141,13 @@
 
 # Log-book
 - Fill in all details
+
+
+# Export this checklist to PDF
+```
+pandoc -s \
+    -V geometry:margin=1in \
+    -V fontsize=10 \
+    -o checklist.pdf checklist.md \
+    --variable=fontfamily:arev
+````
