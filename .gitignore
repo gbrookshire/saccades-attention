@@ -2,6 +2,7 @@ logfiles/
 ethics/
 eyelink/
 data/
+exp-scripts/checklist.pdf
 
 # Matlab stuff
 *.mat
