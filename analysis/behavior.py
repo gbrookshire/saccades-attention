@@ -6,6 +6,7 @@ import json
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+from matplotlib import cm
 import plot_setup
 
 plot_setup.setup()
@@ -57,14 +58,19 @@ def analyze_all_subjects():
 
 
 def plot_results(acc, rt):
+    assert len(acc) < 10 # Need to choose a different colormap for >10 subs
+    colors = cm.tab10(np.arange(10))
+
     # Set up plot layout
     f, (a0, a1) = plt.subplots(1, 2, gridspec_kw={'width_ratios': [1, 3]})
 
     # Plot accuracy
     a0.bar(0.5, np.mean(acc),
-           color='none', edgecolor='blue') 
-    a0.plot(0.5 + np.zeros(len(acc)), acc, 'o',
-            fillstyle='none', color='blue')
+           color='none', edgecolor='black') 
+    for i_subj in range(len(acc)):
+        a0.plot(0.5, acc[i_subj], 'o',
+                fillstyle='none',
+                color=colors[i_subj])
     a0.text(0.5, 0.2,
             f'{np.mean(acc)*100:.1f}%',
             horizontalalignment='center')
@@ -76,12 +82,12 @@ def plot_results(acc, rt):
     a0.set_ylabel('Accuracy')
 
     # Plot RT histograms for each subject
-    for subj_rt in rt:
+    for i_subj,subj_rt in enumerate(rt):
         subj_rt = subj_rt[~np.isnan(subj_rt)]
         a1.hist(subj_rt,
                 bins=20,
                 histtype='step',
-                color='blue')
+                color=colors[i_subj])
     a1.set_xlim([0, 4])
     a1.set_xlabel('Time (s)')
     a1.set_ylabel('Count')
