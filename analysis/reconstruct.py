@@ -130,5 +130,10 @@ if __name__ == '__main__':
     mdl = LogisticRegression(C=0.05, **mdl_params)
     results = reconstruct(mdl, d, **cv_params)
     accuracy = [r['test_score'].mean() for r in results] 
+    # Plot the results
+    import matplotlib.pyplot as plt
     plt.plot(d['times'], accuracy)
+    plt.plot([d['times'].min(), d['times'].max()], [1/6, 1/6], '--k')
+    plt.xlabel('Time (s)')
+    plt.ylabel('Accuracy')
 
