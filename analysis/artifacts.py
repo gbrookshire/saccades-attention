@@ -31,7 +31,7 @@ def identify_artifacts(n):
                                  mask=0b00111111, # Ignore Nata button triggers
                                  shortest_event=1) 
     explore_trig = expt_info['event_dict']['explore']
-    trial_beg = meg_events[meg_events[:,2] == trig, 0]
+    trial_beg = meg_events[meg_events[:,2] == explore_trig, 0]
     trial_dur = 5000 
     annot_onset = np.hstack([raw.first_samp, trial_beg + trial_dur])
     annot_offset = np.hstack([trial_beg, raw.last_samp])
