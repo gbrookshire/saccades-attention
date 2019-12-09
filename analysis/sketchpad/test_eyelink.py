@@ -24,7 +24,6 @@ stim_locs = [dc.origin_psychopy2eyelink(pos) for pos in stim_locs]
 expt_info = json.load(open('expt_info.json'))
 
 def plot_eyetracking(n):
-    n = 2
     d = load_data.load_data(n)
     
     # Select fixation onsets
