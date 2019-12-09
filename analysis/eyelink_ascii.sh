@@ -22,7 +22,15 @@ for fullfile in ../data/eyelink/*; do
 
     # Append `.edf` to the end of the eyelink files
     newpathname="${pathname}/ascii/"
-    newfilename="${newpathname}${filename}.edf" 
+    newfilename="${newpathname}${filename}.edf"
+    asciifilename="${newpathname}${filename}.asc"
+
+    # Skip it if the file has already been converted
+    if [ -f $asciifilename ]
+    then
+        echo "File ${filename} already converted"
+        continue
+    fi
 
     cp $fullfile $newfilename # Make a temporary file
     edf2asc $newfilename # Convert from EDF to ASCII
