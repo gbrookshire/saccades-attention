@@ -1,6 +1,9 @@
 Experiment script
 
 Analysis
+- Notch-filter the raw data while loading everything?
+    - Where would we do this? After ICA, since ICA was computed without it
+    - raw.notch_filter(p.arange(50, 251, 50))
 - Decode direction of upcoming saccade
     - To make sure that results don't depend on movements of the eyes,
     and the corresponding dipole movements, we should ensure that the
