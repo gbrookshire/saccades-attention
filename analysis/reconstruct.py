@@ -17,33 +17,34 @@ scaler = StandardScaler()
 
 def preprocess(d, events, **epochs_kwargs):
     """ Add a field to `d`: a (Trial x Channel x Time) array of MEG data.
-    Modifies `d['fix_info']` in-place to remove rejected trials.
+    Modifies `d['fix_info']` *in-place* to remove rejected trials.
     """
     # Epoch the data
     picks = mne.pick_types(d['raw'].info,
                         meg=True, eeg=False, eog=False,
                         stim=False, exclude='bads')
-    reject = dict(grad=4000e-13, # T / m (gradiometers)
-                mag=4e-12, # T (magnetometers)
-                #eeg=40e-6, # V (EEG channels)
-                #eog=250e-6 # V (EOG channels)
-                ) 
     epochs = mne.Epochs(d['raw'],
                         events,
-                        #reject=reject,
                         reject_by_annotation=True,
                         preload=True,
                         baseline=None,
                         picks=picks,
+                        proj=True,
                         **epochs_kwargs) 
     # Reject ICA artifacts
     d['ica'].apply(epochs) 
     # Resample after epoching to make sure trigger times are correct
-    epochs.resample(200, n_jobs=3) 
+    # epochs.resample(100, n_jobs=3) 
+    # # Apply filters to the data
+    # # These parameters make sure the filter is *causal*, so all effects
+    # # can't bleed backward in time from post- to pre-saccade time-points
+    # # This filter is too long for the data.
+    # epochs.filter(l_freq=1, h_freq=40, # band-pass filter
+    #               method='fir', phase='minimum') # causal filter
     # Reject trials that wre manually marked as bad
     meg_data = epochs.get_data()
     d['fix_info'] = d['fix_info'].iloc[epochs.selection] 
-    # Reject trials with high GFP
+    # Reject trials with high global field power (GFP)
     bad_trials = artifacts.identify_gfp(meg_data, sd=4)
     meg_data = meg_data[~bad_trials,:,:]
     d['fix_info'] = d['fix_info'].iloc[~bad_trials] 
@@ -61,6 +62,7 @@ def cv_reg_param(mdl, d, t_cv):
     few subjects, to get a sense of reasonable values.
 
     mdl: Instance of a sklearn CV model, e.g. LassoCV or LogisticRegressionCV
+    d: output of
     t_cv: Time-point at which we're cross-validating (in s)
     """
     i_time = np.nonzero(d['times'] >= t_cv)[0][0] # Find index of the timepoint
@@ -113,9 +115,10 @@ if __name__ == '__main__':
     new_obj = np.hstack((True, new_obj)) # First fixation is to a new object
     d['fix_info'] = d['fix_info'].loc[new_obj]
     events = events[new_obj,:]
-    # Get preprocessed data
+    # Preprocessed the data
     preprocess(d, events, tmin=-1.0, tmax=0.5) 
-    # Get the stimuli to reconstruct
+    # Get the feature to reconstruct
+    # In this case, it's the stimulus label
     d['y'] = d['fix_info']['closest_stim']
     d['y'] = d['y'].astype(int).to_numpy() 
     # Reconstruct stimuli at each timepoint
@@ -136,4 +139,29 @@ if __name__ == '__main__':
     plt.plot([d['times'].min(), d['times'].max()], [1/6, 1/6], '--k')
     plt.xlabel('Time (s)')
     plt.ylabel('Accuracy')
-
+    # Get the channels used in the LASSO regression
+    # This is the number of non-zero parameters 
+    meg_chan_inx = mne.pick_types(d['raw'].info, meg=True)
+    n_nonzero = np.zeros([0, meg_chan_inx.size])
+    for r_t in results:
+        coefs = [m.coef_ for m in r_t['estimator']]
+        coefs = np.array(coefs)
+        avg_param_count = np.mean(coefs != 0, axis=(0, 1))
+        n_nonzero = np.vstack((n_nonzero, avg_param_count))
+    # Plot the number of nonzero channels over time
+    plt.plot(d['times'], np.sum(n_nonzero, axis=1))
+    plt.xlabel('Time (s)')
+    plt.ylabel('Number of nonzero parameters')
+    # Plot a topography of how often each channel appears
+    x = np.reshape(np.mean(n_nonzero.transpose(), axis=1), [-1, 1])
+    nonzero_params = mne.EvokedArray(x,
+                                     mne.pick_info(d['raw'].info,
+                                                   meg_chan_inx))
+    for ch_type in ('mag', 'grad'):
+        nonzero_params.plot_topomap(times=0, vmin=0, vmax=x.max(),
+                                    scalings={'eeg':1, 'grad':1, 'mag':1},
+                                    units={'eeg':'Prob', 'grad':'Prob', 'mag':'Prob'},
+                                    ch_type=ch_type,
+                                    title='',
+                                    time_format='',
+                                    contours=False)
