@@ -1,6 +1,6 @@
 """
 Reconstruct which image the participant was looking at, time-locked to the
-saccade onset. For positive time-points, this reconstructs perception at the
+fixation onset. For positive time-points, this reconstructs perception at the
 fovea for newly-fixated images. For negative time-points, this is either
 prediction or sensory pre-processing.
 """
