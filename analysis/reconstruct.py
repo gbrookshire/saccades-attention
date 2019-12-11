@@ -1,12 +1,12 @@
 """
 Functions to simplify reconstructing stimuli & behavior from MEG data.
+For an example of how to use this, see reconstruct_item.py
 """
 
 import json
 import numpy as np
 from tqdm import tqdm
 import mne
-import load_data
 import artifacts
 from sklearn.model_selection import cross_validate 
 from sklearn.preprocessing import StandardScaler
@@ -72,7 +72,12 @@ def cv_reg_param(mdl, d, t_cv):
     print('Score: ', mdl.score(x, d['y']))
     print('Avg number of nonzero coefs: ',
           np.mean(np.sum(mdl.coef_ != 0, axis=1)))
-    #print('Regularization parameters: ', mdl.C_)
+    for param_name in ('C_', 'alpha_'):
+        try:
+            reg_param = getattr(mdl, param_name)
+        except AttributeError:
+            pass
+        print('Regularization parameters: ', reg_param) 
 
     return mdl
 
@@ -98,70 +103,3 @@ def reconstruct(mdl, d, **cv_params):
 
     return results
 
-
-if __name__ == '__main__':
-    # This gives slightly different results from the prior version
-    # It's very similar, but the actual numbers are a little different.
-    # Why is that?
-    #
-    # This example runs classifies which image the subject is looking at
-    n = int(input('Subject number: ')) 
-    d = load_data.load_data(n)
-    # Select fixation onsets
-    row_sel = d['fix_events'][:,2] == expt_info['event_dict']['fix_on'] 
-    events = d['fix_events'][row_sel, :] 
-    # Select fixations to a new object
-    new_obj = np.diff(d['fix_info']['closest_stim']) != 0
-    new_obj = np.hstack((True, new_obj)) # First fixation is to a new object
-    d['fix_info'] = d['fix_info'].loc[new_obj]
-    events = events[new_obj,:]
-    # Preprocessed the data
-    preprocess(d, events, tmin=-1.0, tmax=0.5) 
-    # Get the feature to reconstruct
-    # In this case, it's the stimulus label
-    d['y'] = d['fix_info']['closest_stim']
-    d['y'] = d['y'].astype(int).to_numpy() 
-    # Reconstruct stimuli at each timepoint
-    from sklearn.linear_model import LogisticRegression
-    cv_params = {'cv': 5, 
-                 'n_jobs': 5,
-                 'scoring': 'accuracy'}
-    mdl_params = {'penalty': 'l1', 
-                  'solver': 'liblinear',
-                  'multi_class': 'ovr',
-                  'max_iter': 1e4} 
-    mdl = LogisticRegression(C=0.05, **mdl_params)
-    results = reconstruct(mdl, d, **cv_params)
-    accuracy = [r['test_score'].mean() for r in results] 
-    # Plot the results
-    import matplotlib.pyplot as plt
-    plt.plot(d['times'], accuracy)
-    plt.plot([d['times'].min(), d['times'].max()], [1/6, 1/6], '--k')
-    plt.xlabel('Time (s)')
-    plt.ylabel('Accuracy')
-    # Get the channels used in the LASSO regression
-    # This is the number of non-zero parameters 
-    meg_chan_inx = mne.pick_types(d['raw'].info, meg=True)
-    n_nonzero = np.zeros([0, meg_chan_inx.size])
-    for r_t in results:
-        coefs = [m.coef_ for m in r_t['estimator']]
-        coefs = np.array(coefs)
-        avg_param_count = np.mean(coefs != 0, axis=(0, 1))
-        n_nonzero = np.vstack((n_nonzero, avg_param_count))
-    # Plot the number of nonzero channels over time
-    plt.plot(d['times'], np.sum(n_nonzero, axis=1))
-    plt.xlabel('Time (s)')
-    plt.ylabel('Number of nonzero parameters')
-    # Plot a topography of how often each channel appears
-    x = np.reshape(np.mean(n_nonzero.transpose(), axis=1), [-1, 1])
-    nonzero_params = mne.EvokedArray(x,
-                                     mne.pick_info(d['raw'].info,
-                                                   meg_chan_inx))
-    for ch_type in ('mag', 'grad'):
-        nonzero_params.plot_topomap(times=0, vmin=0, vmax=x.max(),
-                                    scalings={'eeg':1, 'grad':1, 'mag':1},
-                                    units={'eeg':'Prob', 'grad':'Prob', 'mag':'Prob'},
-                                    ch_type=ch_type,
-                                    title='',
-                                    time_format='',
-                                    contours=False)
