@@ -2,6 +2,13 @@
 Functions to simplify reconstructing stimuli & behavior from MEG data.
 """
 
+# TODO
+"""
+- Carefully go through pipeline
+- Convert to a class def?
+    - That way all these side effects make more sense...
+"""
+
 import json
 import numpy as np
 from tqdm import tqdm
