@@ -14,6 +14,7 @@ from sklearn.linear_model import LogisticRegression
 import load_data
 import reconstruct
 
+expt_info = json.load(open('expt_info.json')) 
 
 def run(n): 
     # Load the data
@@ -26,7 +27,7 @@ def run(n):
     new_obj = np.hstack((True, new_obj)) # First fixation is to a new object
     d['fix_info'] = d['fix_info'].loc[new_obj]
     events = events[new_obj,:]
-    # Preprocessed the data
+    # Preprocesse the data
     reconstruct.preprocess(d, events, tmin=-1.0, tmax=0.5) 
     # Get the feature to reconstruct
     # In this case, it's the stimulus label
@@ -102,7 +103,6 @@ def plot(results):
 
 
 if __name__ == "__main__":
-    expt_info = json.load(open('expt_info.json')) 
     try:
         n = sys.argv[1]
     except IndexError:
