@@ -7,9 +7,11 @@ import json
 import numpy as np
 import pandas as pd
 import mne
+from load_data import meg_filename
 
 expt_info = json.load(open('expt_info.json'))
-subject_info = pd.read_csv(expt_info['data_dir'] + 'subject_info.csv')
+subject_info = pd.read_csv(expt_info['data_dir'] + 'subject_info.csv',
+                           engine='python', sep=',')
 
 
 def identify_artifacts(n):
@@ -19,8 +21,27 @@ def identify_artifacts(n):
     subj_fname = subject_info['meg'][n]
 
     # Read in the data
-    raw_fname = f'{data_dir}raw/{subj_fname}.fif'
-    raw = mne.io.read_raw_fif(raw_fname)
+    raw = mne.io.read_raw_fif(meg_filename(subj_fname))
+
+    # Make annotations to mark everything that's not part of the trial.
+    # This helps make sure that ICA doesn't pay attention to all the bad data
+    print('Finding MEG events')
+    meg_events = mne.find_events(raw, # Segment out the MEG events
+                                 stim_channel='STI101',
+                                 mask=0b00111111, # Ignore Nata button triggers
+                                 shortest_event=1) 
+    explore_trig = expt_info['event_dict']['explore']
+    trial_beg = meg_events[meg_events[:,2] == explore_trig, 0]
+    trial_dur = 5000 
+    annot_onset = np.hstack([raw.first_samp, trial_beg + trial_dur])
+    annot_offset = np.hstack([trial_beg, raw.last_samp])
+    annot_dur = annot_offset - annot_onset
+    annot_onset = (annot_onset - raw.first_samp) / raw.info['sfreq']
+    annot_dur = annot_dur / raw.info['sfreq']
+    init_annot = mne.Annotations(onset=annot_onset,
+                                 duration=annot_dur,
+                                 description='BAD_out_of_trial')
+    raw.set_annotations(init_annot)
 
     # Manually mark bad segments
     subj_fname = subj_fname.replace('/', '_')
@@ -42,7 +63,6 @@ def identify_artifacts(n):
     raw.set_annotations(annotations)
             
     # ICA
-    #### Do this on the epoched data -- ???
     raw_downsamp = downsample(raw, 10) # Downsample before ICA
     ica = identify_ica(raw_downsamp)
     ica_fname = f'{data_dir}ica/{subj_fname}-ica.fif'
@@ -85,10 +105,9 @@ def identify_manual(raw):
     raw_annot.pick(['meg', 'eog', 'stim'])
     raw_annot.filter(0.5, 40, picks=['meg', 'eog'])
     # Initialize an event
-    init_annot = mne.Annotations(onset=[0],
+    raw_annot.annotations.append(onset=0,
                                  duration=0.001,
                                  description=['BAD_manual'])
-    raw_annot.set_annotations(init_annot)
     # Plot the data
     fig = raw_annot.plot(butterfly=True)
     fig.canvas.key_press_event('a') # Press 'a' to start entering annotations 
