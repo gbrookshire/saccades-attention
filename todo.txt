@@ -1,5 +1,3 @@
-Experiment script
-
 Analysis
 - Notch-filter the raw data while loading everything?
     - Where would we do this? After ICA, since ICA was computed without it
