@@ -43,17 +43,17 @@ def run(n):
                     'max_iter': 1e4} 
     mdl = LogisticRegression(C=0.05, **mdl_params)
     results = reconstruct.reconstruct(mdl, d, **cv_params)
-    return results
+    return (results, d['times'])
 
 
-def plot(results):
+def plot(results, times):
     import matplotlib.pyplot as plt
     # Get the accuracy
     accuracy = [r['test_score'].mean() for r in results] 
     # Plot the results
     plt.figure()
-    plt.plot(d['times'], accuracy)
-    plt.plot([d['times'].min(), d['times'].max()], [1/6, 1/6], '--k')
+    plt.plot(times, accuracy)
+    plt.plot([times.min(), times.max()], [1/6, 1/6], '--k')
     plt.xlabel('Time (s)')
     plt.ylabel('Accuracy')
     # Get the channels used in the LASSO regression
@@ -102,14 +102,36 @@ def plot(results):
     # plt.plot(x, y, '*r')
 
 
+def aggregate():
+    # Get and plot average accuracy
+    acc = []
+    for n in (2,3,4,5):
+        fname = f"{n}.pkl"
+        fname = '../data/reconstruct/item/' + fname
+        results = pickle.load(open(fname, 'rb'))
+        accuracy = [r['test_score'].mean() for r in results]
+        acc.append(accuracy)
+    acc = np.array(acc)
+    t = np.arange(acc.shape[1]) # FIXME
+    sem = lambda x,axis: np.std(x, axis=axis) / np.sqrt(x.shape[axis]) 
+    acc_sem = sem(acc, 0)
+    acc_mean = np.mean(acc, 0)
+    plt.plot(t, acc.T, '-k', alpha=0.3)
+    #plt.fill_between(t, acc_mean + acc_sem, acc_mean - acc_sem,
+    #                 facecolor='blue', edgecolor='none', alpha=0.5)
+    plt.plot(t, acc_mean, '-b')
+    plt.plot([t.min(), t.max()], [1/6, 1/6], '--k')
+    plt.show()
+
+
 if __name__ == "__main__":
     try:
         n = sys.argv[1]
     except IndexError:
         n = input('Subject number: ')
     n = int(n)
-    results = run(n)
+    results, times = run(n)
     fname = f"{expt_info['data_dir']}reconstruct/item/{n}.pkl"
-    pickle.dump(results, open(fname, 'wb'))
+    pickle.dump([results, times], open(fname, 'wb'))
 
 
