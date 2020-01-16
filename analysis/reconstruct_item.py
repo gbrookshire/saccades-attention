@@ -108,7 +108,7 @@ def aggregate():
     for n in (2,3,4,5):
         fname = f"{n}.pkl"
         fname = '../data/reconstruct/item/' + fname
-        results = pickle.load(open(fname, 'rb'))
+        results, times = pickle.load(open(fname, 'rb'))
         accuracy = [r['test_score'].mean() for r in results]
         acc.append(accuracy)
     acc = np.array(acc)
