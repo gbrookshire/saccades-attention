@@ -40,14 +40,8 @@ def preprocess(d, events, **epochs_kwargs):
                         **epochs_kwargs) 
     # Reject ICA artifacts
     d['ica'].apply(epochs) 
-    # Resample after epoching to make sure trigger times are correct
+    # # Resample after epoching to make sure trigger times are correct
     # epochs.resample(100, n_jobs=3) 
-    # # Apply filters to the data
-    # # These parameters make sure the filter is *causal*, so all effects
-    # # can't bleed backward in time from post- to pre-saccade time-points
-    # # This filter is too long for the data.
-    # epochs.filter(l_freq=1, h_freq=40, # band-pass filter
-    #               method='fir', phase='minimum') # causal filter
     # Reject trials that wre manually marked as bad
     meg_data = epochs.get_data()
     d['fix_info'] = d['fix_info'].iloc[epochs.selection] 

@@ -42,6 +42,16 @@ def run(n):
     events = events[fix['saccade']] 
     fix = fix.loc[fix['saccade']]
     #########d['fix_info'] = fix
+    
+    # Filtering or other preprocessing specific to this analysis
+    raw = d['raw']
+    raw.load_data()
+    # Filter the data
+    # These parameters make sure the filter is *causal*, so all effects
+    # can't bleed backward in time from post- to pre-saccade time-points
+    raw.filter(l_freq=1, h_freq=40, # band-pass filter 
+               method='fir', phase='minimum') # causal filter
+
     # Preprocess the data
     reconstruct.preprocess(d, events, tmin=-1.0, tmax=0.5) 
     # Model parameters
@@ -59,11 +69,18 @@ def run(n):
         # Reconstruct stimuli at each timepoint
         results[dim] = reconstruct.reconstruct(mdl, d, **cv_params)
 
-    return results
+    return (results, d['times'])
 
 
-def plot(results):
+
+def plot(n):
+    fname = f"{n}.pkl"
+    fname = '../data/reconstruct/saccade/' + fname
+    results, times = pickle.load(open(fname, 'rb'))
+    accuracy = [r['test_score'].mean() for r in results]
+
     pass
+
 
 if __name__ == "__main__":
     expt_info = json.load(open('expt_info.json')) 

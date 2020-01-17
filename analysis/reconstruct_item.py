@@ -10,11 +10,13 @@ import json
 import pickle
 import numpy as np
 from sklearn.linear_model import LogisticRegression
+import matplotlib.pyplot as plt
 
 import load_data
 import reconstruct
 
 expt_info = json.load(open('expt_info.json')) 
+
 
 def run(n): 
     # Load the data
@@ -27,7 +29,17 @@ def run(n):
     new_obj = np.hstack((True, new_obj)) # First fixation is to a new object
     d['fix_info'] = d['fix_info'].loc[new_obj]
     events = events[new_obj,:]
-    # Preprocesse the data
+
+    # Filtering or other preprocessing specific to this analysis
+    raw = d['raw']
+    raw.load_data()
+    # Filter the data
+    # These parameters make sure the filter is *causal*, so all effects
+    # can't bleed backward in time from post- to pre-saccade time-points
+    raw.filter(l_freq=1, h_freq=40, # band-pass filter 
+               method='fir', phase='minimum') # causal filter
+
+    # Preprocess the data
     reconstruct.preprocess(d, events, tmin=-1.0, tmax=0.5) 
     # Get the feature to reconstruct
     # In this case, it's the stimulus label
@@ -35,19 +47,18 @@ def run(n):
     d['y'] = d['y'].astype(int).to_numpy() 
     # Reconstruct stimuli at each timepoint
     cv_params = {'cv': 5, 
-                    'n_jobs': 5,
-                    'scoring': 'accuracy'}
+                 'n_jobs': 5,
+                 'scoring': 'accuracy'}
     mdl_params = {'penalty': 'l1', 
-                    'solver': 'liblinear',
-                    'multi_class': 'ovr',
-                    'max_iter': 1e4} 
+                  'solver': 'liblinear',
+                  'multi_class': 'ovr',
+                  'max_iter': 1e4} 
     mdl = LogisticRegression(C=0.05, **mdl_params)
     results = reconstruct.reconstruct(mdl, d, **cv_params)
     return (results, d['times'])
 
 
 def plot(results, times):
-    import matplotlib.pyplot as plt
     # Get the accuracy
     accuracy = [r['test_score'].mean() for r in results] 
     # Plot the results
@@ -67,15 +78,15 @@ def plot(results, times):
         n_nonzero = np.vstack((n_nonzero, avg_param_count))
     # Plot the number of nonzero channels over time
     plt.figure()
-    plt.plot(d['times'], np.sum(n_nonzero, axis=1))
+    plt.plot(times, np.sum(n_nonzero, axis=1))
     plt.xlabel('Time (s)')
     plt.ylabel('Number of nonzero parameters')
 
-    # # Plot a topography of how often each channel appears
-    # x = np.reshape(np.mean(n_nonzero.transpose(), axis=1), [-1, 1])
-    # nonzero_params = mne.EvokedArray(x,
-    #                                  mne.pick_info(d['raw'].info,
-    #                                                meg_chan_inx))
+    # Plot a topography of how often each channel appears
+    x = np.reshape(np.mean(n_nonzero.transpose(), axis=1), [-1, 1])
+    nonzero_params = mne.EvokedArray(x,
+                                     mne.pick_info(d['raw'].info,
+                                                   meg_chan_inx))
 
     # # This doesn't really work
     # lay = mne.channels.find_layout(nonzero_params.info)
@@ -105,22 +116,27 @@ def plot(results, times):
 def aggregate():
     # Get and plot average accuracy
     acc = []
+    t = []
     for n in (2,3,4,5):
         fname = f"{n}.pkl"
         fname = '../data/reconstruct/item/' + fname
         results, times = pickle.load(open(fname, 'rb'))
         accuracy = [r['test_score'].mean() for r in results]
         acc.append(accuracy)
+        t.append(times)
     acc = np.array(acc)
-    t = np.arange(acc.shape[1]) # FIXME
+    acc_mean = np.mean(acc, 0)
+    #plt.plot(times, acc.T, '-k', alpha=0.3) # Individual subjects
     sem = lambda x,axis: np.std(x, axis=axis) / np.sqrt(x.shape[axis]) 
     acc_sem = sem(acc, 0)
-    acc_mean = np.mean(acc, 0)
-    plt.plot(t, acc.T, '-k', alpha=0.3)
-    #plt.fill_between(t, acc_mean + acc_sem, acc_mean - acc_sem,
-    #                 facecolor='blue', edgecolor='none', alpha=0.5)
-    plt.plot(t, acc_mean, '-b')
-    plt.plot([t.min(), t.max()], [1/6, 1/6], '--k')
+    plt.fill_between(times, acc_mean + acc_sem, acc_mean - acc_sem,
+                     facecolor='blue', edgecolor='none', alpha=0.5)
+    plt.plot(times, acc_mean, '-b')
+    plt.axvline(x=0, color='black', linestyle='-') # Fixation onset
+    plt.axhline(y=1/6, color='black', linestyle='--') # Chance level
+    plt.xlabel('Time (s)')
+    plt.ylabel('Accuracy')
+    plt.xlim(times.min(), times.max())
     plt.show()
 
 
