@@ -8,6 +8,7 @@ import pickle
 import numpy as np
 import pandas as pd
 from sklearn.linear_model import Lasso, LassoCV
+import matplotlib.pyplot as plt
 
 import load_data
 import reconstruct
@@ -41,7 +42,7 @@ def run(n):
     fix['y_change'] = pd.Series(y_change, index=fix.index)
     events = events[fix['saccade']] 
     fix = fix.loc[fix['saccade']]
-    #########d['fix_info'] = fix
+    d['fix_info'] = fix
     
     # Filtering or other preprocessing specific to this analysis
     raw = d['raw']
@@ -50,7 +51,8 @@ def run(n):
     # These parameters make sure the filter is *causal*, so all effects
     # can't bleed backward in time from post- to pre-saccade time-points
     raw.filter(l_freq=1, h_freq=40, # band-pass filter 
-               method='fir', phase='minimum') # causal filter
+               method='fir', phase='minimum', # causal filter
+               n_jobs=5)
 
     # Preprocess the data
     reconstruct.preprocess(d, events, tmin=-1.0, tmax=0.5) 
@@ -59,38 +61,40 @@ def run(n):
                  'n_jobs': 5}
     mdl_params = {'selection': 'random', # Speeds up model fitting
                   'max_iter': 1e4}
-    # Separately reconstruct x- and y-direction
+    # Separately reconstruct x- and y-direction of movement
     mdl = Lasso(alpha=3.57, **mdl_params)
     results = {}
     for dim in ('x', 'y'):
         # Set the variable to reconstruct
-        field_name = f"{dim}_change"
-        d['y'] = fix[field_name].to_numpy()
+        d['y'] = d['fix_info'][f"{dim}_change"].copy().to_numpy()
         # Reconstruct stimuli at each timepoint
-        results[dim] = reconstruct.reconstruct(mdl, d, **cv_params)
+        results[dim] = reconstruct.reconstruct(mdl, d.copy(), **cv_params)
 
     return (results, d['times'])
 
 
 
 def plot(n):
-    fname = f"{n}.pkl"
-    fname = '../data/reconstruct/saccade/' + fname
+    fname = f'../data/reconstruct/saccade/{n}.pkl'
     results, times = pickle.load(open(fname, 'rb'))
-    accuracy = [r['test_score'].mean() for r in results]
+    accuracy = {[r['test_score'].mean() for r in results[dim]] for dim in ('x', 'y')}
+    for dim in ('x', 'y'):
+        accuracy = [r['test_score'].mean() for r in results[dim]]
+        plt.plot(times, accuracy)
+    plt.show()
 
-    pass
 
 
 if __name__ == "__main__":
-    expt_info = json.load(open('expt_info.json')) 
     try:
         n = sys.argv[1]
     except IndexError:
         n = input('Subject number: ')
     n = int(n)
-    results = run(n)
+    results, times = run(n)
     fname = f"{expt_info['data_dir']}reconstruct/saccade/{n}.pkl"
-    pickle.dump(results, open(fname, 'wb'))
+    pickle.dump([results, times], open(fname, 'wb'))
+
+
 
 
