@@ -126,11 +126,11 @@ def aggregate():
         t.append(times)
     acc = np.array(acc)
     acc_mean = np.mean(acc, 0)
-    #plt.plot(times, acc.T, '-k', alpha=0.3) # Individual subjects
-    sem = lambda x,axis: np.std(x, axis=axis) / np.sqrt(x.shape[axis]) 
-    acc_sem = sem(acc, 0)
-    plt.fill_between(times, acc_mean + acc_sem, acc_mean - acc_sem,
-                     facecolor='blue', edgecolor='none', alpha=0.5)
+    plt.plot(times, acc.T, '-k', alpha=0.3) # Individual subjects
+    # sem = lambda x,axis: np.std(x, axis=axis) / np.sqrt(x.shape[axis]) 
+    # acc_sem = sem(acc, 0)
+    # plt.fill_between(times, acc_mean + acc_sem, acc_mean - acc_sem,
+    #                  facecolor='blue', edgecolor='none', alpha=0.5)
     plt.plot(times, acc_mean, '-b')
     plt.axvline(x=0, color='black', linestyle='-') # Fixation onset
     plt.axhline(y=1/6, color='black', linestyle='--') # Chance level
