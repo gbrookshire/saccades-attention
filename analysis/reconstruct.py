@@ -22,10 +22,16 @@ expt_info = json.load(open('expt_info.json'))
 scaler = StandardScaler()
 
 
-def preprocess(d, events, **epochs_kwargs):
+def preprocess(d, events, preproc_fnc=None, **epochs_kwargs):
     """ Add a field to `d`: a (Trial x Channel x Time) array of MEG data.
     Modifies `d['fix_info']` *in-place* to remove rejected trials.
     """
+    d['raw'].load_data()
+    # Reject ICA artifacts
+    d['ica'].apply(d['raw']) 
+    # Apply any additional preprocessing
+    if preproc_fnc is not None:
+        d['raw'] = preproc_fnc(d['raw'])
     # Epoch the data
     picks = mne.pick_types(d['raw'].info,
                         meg=True, eeg=False, eog=False,
@@ -38,8 +44,6 @@ def preprocess(d, events, **epochs_kwargs):
                         picks=picks,
                         proj=True,
                         **epochs_kwargs) 
-    # Reject ICA artifacts
-    d['ica'].apply(epochs) 
     # # Resample after epoching to make sure trigger times are correct
     # epochs.resample(100, n_jobs=3) 
     # Reject trials that wre manually marked as bad
@@ -71,14 +75,14 @@ def cv_reg_param(mdl, d, t_cv):
     x = scaler.fit_transform(x) 
     mdl.fit(x, d['y'])
     print('Score: ', mdl.score(x, d['y']))
-    print('Avg number of nonzero coefs: ',
-          np.mean(np.sum(mdl.coef_ != 0, axis=1)))
-    for param_name in ('C_', 'alpha_'):
-        try:
-            reg_param = getattr(mdl, param_name)
-        except AttributeError:
-            pass
-        print('Regularization parameters: ', reg_param) 
+    #print('Avg number of nonzero coefs: ',
+    #      np.mean(np.sum(mdl.coef_ != 0, axis=1)))
+    #for param_name in ('C_', 'alpha_'):
+    #    try:
+    #        reg_param = getattr(mdl, param_name)
+    #    except AttributeError:
+    #        pass
+    #    print('Regularization parameters: ', reg_param) 
 
     return mdl
 
