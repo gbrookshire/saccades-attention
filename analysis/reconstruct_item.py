@@ -21,30 +21,50 @@ expt_info = json.load(open('expt_info.json'))
 def run(n): 
     # Load the data
     d = load_data.load_data(n)
-    # Select fixation onsets
-    row_sel = d['fix_events'][:,2] == expt_info['event_dict']['fix_on'] 
+
+    locking_event = 'fixation' # fixation or saccade
+    if locking_event == 'fixation':
+        event_key = 'fix_on'
+    elif locking_event == 'saccade':
+        event_key == 'fix_off'
+
+
+    # Select events for segmentation
+    row_sel = d['fix_events'][:,2] == expt_info['event_dict'][event_key] 
     events = d['fix_events'][row_sel, :] 
+
+    # When locking to saccade onsets, we have to adjust for the fact that item
+    # identity is tagged to saccade onset. This means shifting all the events
+    # by 1.
+    if locking_event == 'saccade':
+        events = events[:-1,:]
+        events = np.vstack([[0, 0, 200], events])
+
     # Select fixations to a new object
     new_obj = np.diff(d['fix_info']['closest_stim']) != 0
     new_obj = np.hstack((True, new_obj)) # First fixation is to a new object
     d['fix_info'] = d['fix_info'].loc[new_obj]
     events = events[new_obj,:]
 
-    # Filtering or other preprocessing specific to this analysis
-    raw = d['raw']
-    raw.load_data()
-    # Filter the data
-    # These parameters make sure the filter is *causal*, so all effects
-    # can't bleed backward in time from post- to pre-saccade time-points
-    raw.filter(l_freq=1, h_freq=40, # band-pass filter 
-               method='fir', phase='minimum') # causal filter
+    def preproc_erp_filt(raw):
+        """ Filter the data as is standard for an ERP analysis
+        """
+        # Filter the data
+        # These parameters make sure the filter is *causal*, so all effects
+        # can't bleed backward in time from post- to pre-saccade time-points
+        raw.filter(l_freq=1, h_freq=40, # band-pass filter 
+                method='fir', phase='minimum', # causal filter
+                n_jobs=5)
+        return raw
 
     # Preprocess the data
-    reconstruct.preprocess(d, events, tmin=-1.0, tmax=0.5) 
+    reconstruct.preprocess(d, events, preproc_erp_filt, tmin=-1.0, tmax=0.5) 
+
     # Get the feature to reconstruct
     # In this case, it's the stimulus label
     d['y'] = d['fix_info']['closest_stim']
     d['y'] = d['y'].astype(int).to_numpy() 
+
     # Reconstruct stimuli at each timepoint
     cv_params = {'cv': 5, 
                  'n_jobs': 5,
@@ -55,6 +75,7 @@ def run(n):
                   'max_iter': 1e4} 
     mdl = LogisticRegression(C=0.05, **mdl_params)
     results = reconstruct.reconstruct(mdl, d, **cv_params)
+
     return (results, d['times'])
 
 
@@ -117,9 +138,9 @@ def aggregate():
     # Get and plot average accuracy
     acc = []
     t = []
-    for n in (2,3,4,5):
-        fname = f"{n}.pkl"
-        fname = '../data/reconstruct/item/' + fname
+    for n in (2,3,4,5,6):
+        analysis_type = 'fix_onset' # saccade_onset, fix_onset
+        fname = f"../data/reconstruct/item/{analysis_type}/{n}.pkl"
         results, times = pickle.load(open(fname, 'rb'))
         accuracy = [r['test_score'].mean() for r in results]
         acc.append(accuracy)
@@ -128,7 +149,7 @@ def aggregate():
     acc_mean = np.mean(acc, 0)
     plt.plot(times, acc.T, '-k', alpha=0.3) # Individual subjects
     # sem = lambda x,axis: np.std(x, axis=axis) / np.sqrt(x.shape[axis]) 
-    # acc_sem = sem(acc, 0)
+    # acc_sem = sem(acc, 0) * 1.96 # 95% CI
     # plt.fill_between(times, acc_mean + acc_sem, acc_mean - acc_sem,
     #                  facecolor='blue', edgecolor='none', alpha=0.5)
     plt.plot(times, acc_mean, '-b')
