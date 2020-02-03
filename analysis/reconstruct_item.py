@@ -26,7 +26,7 @@ def run(n):
     if locking_event == 'fixation':
         event_key = 'fix_on'
     elif locking_event == 'saccade':
-        event_key == 'fix_off'
+        event_key = 'fix_off'
 
 
     # Select events for segmentation
