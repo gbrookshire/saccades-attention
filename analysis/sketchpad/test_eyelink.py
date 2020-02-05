@@ -30,7 +30,6 @@ def plot_eyetracking(n):
     row_sel = d['fix_events'][:,2] == expt_info['event_dict']['fix_on']
     d['fix_events'] = d['fix_events'][row_sel, :]
     
-    
     fix = d['fix_info']
     
     # Set up the grid of subplots
@@ -50,7 +49,6 @@ def plot_eyetracking(n):
     ax = plt.gca()
     ax.axes.get_xaxis().set_visible(False)
     ax.axes.get_yaxis().set_visible(False)
-    # TODO Add a box where each stimulus is instead of just a point
     
     # Histogram of fixation duration
     f.add_subplot(gs_right[0,0])
@@ -72,10 +70,9 @@ def plot_eyetracking(n):
     plt.ylabel('Density')
     plt.xlim(0, 0.150)
     
-    plt.show()
-    fname = f"{expt_info['data_dir']}plots/behavior/fixations/{n}.pdf" 
+    fname = f"{expt_info['data_dir']}plots/behavior/fixations/{n}.png" 
     plt.savefig(fname)
-
+    plt.show()
 
 # Look for serial dependence in saccade directions
 
