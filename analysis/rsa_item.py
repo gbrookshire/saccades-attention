@@ -24,14 +24,21 @@ import artifacts
 
 expt_info = json.load(open('expt_info.json')) 
 
-def preprocess(n):
+def preprocess(n, lock_event='saccade', chan_sel='all', filt=[1, 30]):
+    """
+    lock_event: saccade or fixation
+    chan_sel: all or grad or mag
+    filt: 2-item sequence specifying a BP filter
+    """
     
     d = load_data.load_data(n)
     
-    locking_event = 'saccade' # fixation or saccade
-    if locking_event == 'fixation':
+    if chan_sel == 'all':
+        chan_sel = True
+
+    if lock_event == 'fixation':
         event_key = 'fix_on'
-    elif locking_event == 'saccade':
+    elif lock_event == 'saccade':
         event_key = 'fix_off'
     
     # Select events for segmentation
@@ -41,7 +48,7 @@ def preprocess(n):
     # When locking to saccade onsets, we have to adjust for the fact that item
     # identity is tagged to saccade onset. This means shifting all the events
     # by 1.
-    if locking_event == 'saccade':
+    if lock_event == 'saccade':
         events = events[:-1,:]
         events = np.vstack([[0, 0, 200], events])
     
@@ -56,13 +63,14 @@ def preprocess(n):
     # Reject ICA artifacts
     d['ica'].apply(d['raw']) 
     # Filter the data
-    d['raw'].filter(l_freq=1, h_freq=100, # band-pass filter 
+    d['raw'].filter(l_freq=filt[0], h_freq=filt[1], # band-pass filter 
                     method='fir', phase='minimum', # causal filter
                     n_jobs=5)
     # Epoch the data
     picks = mne.pick_types(d['raw'].info,
-                        meg=True, eeg=False, eog=False,
-                        stim=False, exclude='bads')
+                           meg=chan_sel,
+                           eeg=False, eog=False,
+                           stim=False, exclude='bads')
     epochs = mne.Epochs(d['raw'],
                         events,
                         tmin=-1.0, tmax=0.5,
@@ -176,25 +184,22 @@ def test_corr_analysis():
 
 def aggregate():
     import everyone
-    locking_event = 'fixation' # fixation or saccade
+    chan_sel = 'all' # grad or mag or all
+    lock_event = 'saccade' # fixation or saccade
+    filt = (1, 30) 
+    filt = f"{filt[0]}-{filt[1]}"
+    data_dir = expt_info['data_dir']
     def load_rsa(row):
         n = row['n']
-        fname = f"{expt_info['data_dir']}rsa/{locking_event}/{n}.pkl"
+        fname = f"{data_dir}rsa/{n}_{chan_sel}_{lock_event}_{filt}.pkl"
         res = pickle.load(open(fname, 'rb'))
         return res
-    results = everyone.apply(load_rsa)
+    results = everyone.apply_fnc(load_rsa)
     same_coef, diff_coef, times = zip(*results)
-    #plt.figure()
-    #for i_subj in range(len(same_coef)):
-    #    plt.subplot(2, 3, i_subj + 1)
-    #    plt.plot(times[i_subj], same_coef[i_subj], '-r')
-    #    plt.plot(times[i_subj], diff_coef[i_subj], '-k')
-    #    plt.xlabel('Time (s)')
-    #    plt.ylabel('$R^2$')
-    #plt.tight_layout()
+    same_coef = np.array(same_coef)
+    diff_coef = np.array(diff_coef)
 
     # Plot the averages
-    #plt.figure()
     plt.subplot(2, 1, 1)
     same_mean = np.mean(same_coef, axis=0)
     diff_mean = np.mean(diff_coef, axis=0)
@@ -207,7 +212,7 @@ def aggregate():
 
     # Plot the difference between same and diff trials
     plt.subplot(2, 1, 2)
-    same_minus_diff = np.array(same_coef) - np.array(diff_mean)
+    same_minus_diff = same_coef - diff_coef
     plt.plot(times[0], same_minus_diff.transpose(), '-k', alpha=0.3)
     plt.axhline(y=0, linestyle='--', color='k')
     plt.axvline(x=0, linestyle='--', color='k')
@@ -216,19 +221,23 @@ def aggregate():
     plt.ylabel('Same - Diff')
 
     plt.tight_layout()
-
+    fname = f"{data_dir}plots/rsa/rsa_{chan_sel}_{lock_event}_{filt}.png"
+    plt.savefig(fname)
+    plt.show()
 
 
 if __name__ == '__main__':
-    try:
-        n = sys.argv[1]
-    except IndexError:
-        n = input('Subject number: ')
-    n = int(n)
-    d = preprocess(n)
+    n = int(sys.argv[1])
+    chan_sel = sys.argv[2]
+    
+    filt = [1, 30]
+    lock_event = 'saccade'
+    print(n, filt, chan_sel, lock_event)
+    d = preprocess(n, lock_event, chan_sel, filt)
     same_coef, diff_coef = corr_analysis(d['meg_data'], d['y'])
 
-    fname = f"{expt_info['data_dir']}rsa/{n}.pkl"
+    data_dir = expt_info['data_dir']
+    fname = f"{data_dir}rsa/{n}_{chan_sel}_{lock_event}_{filt[0]}-{filt[1]}.pkl"
     pickle.dump([same_coef, diff_coef, d['times']], open(fname, 'wb'))
 
 
