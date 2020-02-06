@@ -201,8 +201,8 @@ def aggregate():
     def load_rsa(row):
         n = row['n']
         dd = 'no_close_saccades' # Which version to use
-        fname = f"{data_dir}rsa/{dd}/{n}_{chan_sel}_{lock_event}_{filt}.pkl"
-        res = pickle.load(open(fname, 'rb'))
+        fname = f"{data_dir}rsa/{dd}/{n}_{chan_sel}_{lock_event}_{filt}.h5"
+        res = mne.externals.h5io.write_hdf5(fname)
         return res
     results = everyone.apply_fnc(load_rsa)
     same_coef, diff_coef, times = zip(*results)
@@ -247,7 +247,7 @@ if __name__ == '__main__':
     same_coef, diff_coef = corr_analysis(d['meg_data'], d['y'])
 
     data_dir = expt_info['data_dir']
-    fname = f"{data_dir}rsa/{n}_{chan_sel}_{lock_event}_{filt[0]}-{filt[1]}.pkl"
-    pickle.dump([same_coef, diff_coef, d['times']], open(fname, 'wb'))
+    fname = f"{data_dir}rsa/{n}_{chan_sel}_{lock_event}_{filt[0]}-{filt[1]}.h5"
+    mne.externals.h5io.write_hdf5([same_coef, diff_coef, d['times']], fname)
 
 
