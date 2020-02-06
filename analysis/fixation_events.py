@@ -86,6 +86,7 @@ def get_fixation_events(meg_events, eye_data, behav_data):
     # Check whether the subject looks at the objects that are on the screen 
     fix['closest_loc'] = np.nan # New column for the closest stim location
     fix['closest_stim'] = np.nan # Stimulus at the fixated location
+    fix['prev_stim'] = np.nan # Stimulus at the last fixation
     fix['dist_to_stim'] = np.nan # Distance to the center of closest stim
     fix['on_target'] = None
     for i_fix in range(fix.shape[0]):
@@ -106,7 +107,23 @@ def get_fixation_events(meg_events, eye_data, behav_data):
             fix.loc[i_fix, 'on_target'] = True
         else:
             fix.loc[i_fix, 'on_target'] = False 
-    
+
+        # Check which stimulus was in the previous fixation
+        back_counter = 1
+        while True:
+            prev_row = fix.loc[i_fix - back_counter]
+            if not prev_row['on_target']:
+                fix.loc[i_fix, 'prev_stim'] = np.nan
+                break
+            elif prev_row['closest_stim'] != fix.loc[i_fix, 'closest_stim']:
+                fix.loc[i_fix, 'prev_stim'] = prev_row['closest_stim']
+                break
+            elif back_counter > 10: # More than X fixations on one target?
+                fix.loc[i_fix, 'prev_stim'] = np.nan
+                break
+            else:
+                back_counter += 1
+
     # What proportion of the fixations were on a target?
     on_target = np.sum(fix['on_target'] == True)
     off_target = np.sum(fix['on_target'] == False)
@@ -122,6 +139,8 @@ def get_fixation_events(meg_events, eye_data, behav_data):
     # plt.xlabel('Degrees') 
     # plt.show()
     # plt.savefig(os.path.expanduser('~/Downloads/fix_dist.pdf'))
+
+    # Which item was in the previous fixation?
     
     # Only keep fixations on the targets
     fix = fix.loc[fix['on_target'] == True]
