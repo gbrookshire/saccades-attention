@@ -15,6 +15,7 @@ import json
 import pickle
 import itertools
 import numpy as np
+from itertools import combinations, permutations
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 import mne
@@ -57,7 +58,7 @@ def preprocess(n, lock_event='saccade', chan_sel='all', filt=[1, 30]):
     prior_saccade_time = events[1:,0] - events[:-1,0]
     too_close = prior_saccade_time < 250
     too_close = np.hstack([[False], too_close])
-    
+
     # Select fixations to a new object
     new_obj = np.diff(d['fix_info']['closest_stim']) != 0
     new_obj = np.hstack((True, new_obj)) # First fixation is to a new object
@@ -101,59 +102,103 @@ def preprocess(n, lock_event='saccade', chan_sel='all', filt=[1, 30]):
     d['meg_data'] = meg_data
     d['times'] = epochs.times
     
-    # Get the feature to reconstruct
-    # In this case, it's the stimulus label
-    d['y'] = d['fix_info']['closest_stim']
-    d['y'] = d['y'].astype(int).to_numpy() 
-    
     return d
 
 
-def corr_analysis(x, labels):
+def corr_analysis(d):
     """
     For each timepoint, check whether the spatial
     x: Brain data (trial x channel x time)
     labels: Label for each trial
     """
-    unique_labels = np.unique(labels)
+    x = d['meg_data']
+    presaccade_item = d['fix_info']['prev_stim']
+    postsaccade_item = d['fix_info']['closest_stim']
 
-    same_coef = []
-    diff_coef = []
-    for i_time in tqdm(range(x.shape[-1])):
-        # Get correlations between each trial
-        # How similar are the scalp topographies across trials?
-        x_t = x[:,:,i_time]
-        c = np.corrcoef(x_t) # Correlation matrix
-        # Then go through each label and compare corr coefs of
-        # same-label vs different-label trials
+    # Exclude trials that don't haev a previous stim
+    nans = np.isnan(presaccade_item)
+    x = x[~nans,:,:]
+    presaccade_item = presaccade_item[~nans].astype(np.int)
+    postsaccade_item = postsaccade_item[~nans].astype(np.int)
 
-        # Get all trials with the same label
-        same_label_coef = []
-        for lab in unique_labels:
-            # Get all trials with this label
-            lab_inx = labels == lab
-            lab_inx = np.nonzero(lab_inx)[0]
-            # Get all combinations of these trials
-            trial_combos = itertools.combinations(lab_inx, 2)
-            trial_combos = tuple(zip(*trial_combos)) # Arrange for indexing
-            # Extract all these corr coefs
-            same_label_coef.extend(c[trial_combos])
-        same_coef.append(np.mean(same_label_coef))
+    # Get the transition label of each trial
+    trans_label = np.char.array(presaccade_item) + \
+                    np.full(x.shape[0], b'-') + \
+                    np.char.array(postsaccade_item)
+    trans_label = trans_label.astype(str)
 
-        # Get all trials with different labels
-        diff_combos = [] 
-        for lab_combo in itertools.combinations(unique_labels, 2):
-            inx = [np.nonzero(labels == lab)[0].tolist() for lab in lab_combo]
-            label_combos = list(zip(*inx)) # Make into pairs
-            diff_combos.extend(label_combos)
-        diff_combos = tuple(zip(*diff_combos)) # Arrange for indexing
-        diff_label_coef = c[diff_combos]
-        diff_coef.append(np.mean(diff_label_coef))
-            
-    return same_coef, diff_coef
+    # Check how many of each transition we have
+    hist_labels, hist_counts = np.unique(trans_label, return_counts=True)
+    plt.bar(range(len(hist_labels)), hist_counts) 
+    plt.xticks(range(len(hist_labels)), hist_labels)
+    plt.setp(plt.gca().xaxis.get_majorticklabels(), rotation=90)
+
+    # Get all comparisons between trials
+    # Get all the unique 'same/diff' comparisons between transition types
+    def find_unique_comp_inx(val):
+        #comp_inx = np.nonzero(np.tril(rsa_mat) == val)
+        comp_inx = np.nonzero(rsa_mat == val)
+        comps = [(transition_labels[pre], transition_labels[post])
+                    for pre,post in zip(*comp_inx)]
+        return comps
+
+    same_comps = find_unique_comp_inx(1)
+    diff_comps = find_unique_comp_inx(-1)
+
+    # Find all combinations of trials that are in one of these lists
+    trial_combinations = ((n1, n2) # Combinations of trial inx
+                            for n1 in range(x.shape[0])
+                            for n2 in range(x.shape[0]))
+    same_trial_inx = [] # Keep track of inx in the corr mat
+    diff_trial_inx = []
+    for trial_combo in trial_combinations:
+        if trial_combo[0] == trial_combo[1]:
+            continue
+        label_combo = (trans_label[trial_combo[0]], trans_label[trial_combo[1]])
+        if label_combo in same_comps:
+            same_trial_inx.append(trial_combo)
+        elif label_combo in diff_comps:
+            diff_trial_inx.append(trial_combo)
+
+    ## # Do we get the expected ratio of 'different' to 'same' comparisons?
+    ## # It should be about 3:1 to mirror the RSA matrix
+    ## n_diff = len(diff_trial_inx)
+    ## n_same = len(same_trial_inx)
+    ## print(n_diff)
+    ## print(n_same)
+    ## print(n_diff / n_same)
+
+    # For each timepoint, get the difference between same- and diff- trials
+    same_corr_timecourse = []
+    diff_corr_timecourse = []
+    for i_time in tqdm(range(x.shape[2])):
+        c = np.corrcoef(x[:,:,i_time])
+
+        same_corr = c[tuple(zip(*same_trial_inx))]
+        diff_corr = c[tuple(zip(*diff_trial_inx))]
+
+        same_corr = same_corr.mean()
+        diff_corr = diff_corr.mean()
+
+        same_corr_timecourse.append(same_corr)
+        diff_corr_timecourse.append(diff_corr)
+
+    ## # Plot it
+    ## plt.subplot(2, 1, 1)
+    ## plt.plot(d['times'], same_corr_timecourse, '-r')
+    ## plt.plot(d['times'], diff_corr_timecourse, '-k')
+    ## plt.ylabel('R')
+    ## plt.subplot(2, 1, 2)
+    ## same_minus_diff = np.array(same_corr_timecourse) - np.array(diff_corr_timecourse)
+    ## plt.plot(d['times'], same_minus_diff)
+    ## plt.axhline(0, linestyle='--', color='k')
+    ## plt.ylabel('Same - Diff')
+    ## plt.xlabel('Time (s)')
+
+    return same_corr_timecourse, diff_corr_timecourse
 
 
-def test_corr_analysis():
+def test_corr_analysis(): # FIXME -- doesn't work with new script
     """
     Test the analysis on simulated data
     """
@@ -236,15 +281,58 @@ def aggregate():
     plt.show()
 
 
+def rsa_matrix(plot=False):
+    """ Construct the matrix of which transitions are considered 'same' or
+    'different' for the RSA analysis.
+
+    Different: Saccades in which neither the pre-saccade or post-saccade items
+    are the same. Don't compare A-->B to B-->C. Instead, only make comparisons
+    like A-->B and C-->D.
+
+    Same: Saccades in which the pre-saccade item is different but the
+    post-saccade item is the same.
+    """
+    items = range(6)
+    transitions = list(permutations(items, 2))
+    # Sort by post-saccade item
+    transitions = sorted(transitions, key=lambda x: (x[1], x[0])) 
+    transition_labels = [f'{e[0]}-{e[1]}' for e in transitions]
+    rsa_mat = np.zeros([len(transitions)] * 2)
+    for i_x, t_x in enumerate(transitions):
+        for i_y, t_y in enumerate(transitions):
+            if len(set(t_x + t_y)) == 4: # All 4 items are different
+                rsa_mat[i_y, i_x] = -1
+            elif (t_x[0] != t_y[0]) and (t_x[1] == t_y[1]): # Diff pre same post
+                rsa_mat[i_y, i_x] = 1
+            else:
+                pass # Neither a "same" nor a "different" saccade
+
+    if plot:
+        plt.imshow(rsa_mat, cmap='bwr')
+        plt.xticks(range(len(transitions)), transition_labels)
+        plt.gca().xaxis.tick_top()
+        plt.setp(plt.gca().xaxis.get_majorticklabels(), rotation=90)
+        plt.yticks(range(len(transitions)), transition_labels)
+
+        fname = f"{expt_info['data_dir']}plots/rsa/rsa_matrix.png"
+        plt.savefig(fname)
+
+        print(f"{np.sum(rsa_mat == 1)} types of 'same' saccades")
+        print(f"{np.sum(rsa_mat == -1)} types of 'different' saccades")
+        print(f"{np.sum(rsa_mat == 0)} types of ignored saccades")
+
+    return rsa_mat, transition_labels
+
+
 if __name__ == '__main__':
     n = int(sys.argv[1])
-    chan_sel = sys.argv[2]
     
+    chan_sel = 'all'
     filt = [1, 30]
     lock_event = 'saccade'
     print(n, filt, chan_sel, lock_event)
     d = preprocess(n, lock_event, chan_sel, filt)
-    same_coef, diff_coef = corr_analysis(d['meg_data'], d['y'])
+    same_coef, diff_coef = corr_analysis(d)
 
     data_dir = expt_info['data_dir']
     fname = f"{data_dir}rsa/{n}_{chan_sel}_{lock_event}_{filt[0]}-{filt[1]}.h5"
