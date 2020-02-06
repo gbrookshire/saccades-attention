@@ -53,7 +53,7 @@ def plot_eyetracking(n):
     # Histogram of fixation duration
     f.add_subplot(gs_right[0,0])
     plt.hist(fix['dur'] / 1000,
-             bins=25, density=True)
+             bins=25, density=False)
     plt.xlabel('Fixation Duration (s)')
     plt.ylabel('Density')
     
@@ -65,14 +65,14 @@ def plot_eyetracking(n):
     isi = isi / 1000
     isi = isi[isi < 0.15]
     plt.hist(isi,
-             bins=25, density=True) 
+             bins=25, density=False) 
     plt.xlabel('Saccade Duration (s)')
     plt.ylabel('Density')
     plt.xlim(0, 0.150)
     
     fname = f"{expt_info['data_dir']}plots/behavior/fixations/{n}.png" 
     plt.savefig(fname)
-    plt.show()
+    plt.close()
 
 # Look for serial dependence in saccade directions
 
