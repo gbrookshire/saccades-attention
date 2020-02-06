@@ -51,12 +51,21 @@ def preprocess(n, lock_event='saccade', chan_sel='all', filt=[1, 30]):
     if lock_event == 'saccade':
         events = events[:-1,:]
         events = np.vstack([[0, 0, 200], events])
+
+    # Only keep trials that didn't have another eye movement too recently
+    prior_saccade_thresh = 250 # In samples (i.e. ms)
+    prior_saccade_time = events[1:,0] - events[:-1,0]
+    too_close = prior_saccade_time < 250
+    too_close = np.hstack([[False], too_close])
     
     # Select fixations to a new object
     new_obj = np.diff(d['fix_info']['closest_stim']) != 0
     new_obj = np.hstack((True, new_obj)) # First fixation is to a new object
-    d['fix_info'] = d['fix_info'].loc[new_obj]
-    events = events[new_obj,:]
+
+    # Apply the selections
+    trial_sel = new_obj & ~too_close
+    d['fix_info'] = d['fix_info'].loc[trial_sel]
+    events = events[trial_sel,:]
     
     # Preprocess the data
     d['raw'].load_data()
@@ -184,14 +193,15 @@ def test_corr_analysis():
 
 def aggregate():
     import everyone
-    chan_sel = 'all' # grad or mag or all
+    chan_sel = 'grad' # grad or mag or all
     lock_event = 'saccade' # fixation or saccade
     filt = (1, 30) 
     filt = f"{filt[0]}-{filt[1]}"
     data_dir = expt_info['data_dir']
     def load_rsa(row):
         n = row['n']
-        fname = f"{data_dir}rsa/{n}_{chan_sel}_{lock_event}_{filt}.pkl"
+        dd = 'no_close_saccades' # Which version to use
+        fname = f"{data_dir}rsa/{dd}/{n}_{chan_sel}_{lock_event}_{filt}.pkl"
         res = pickle.load(open(fname, 'rb'))
         return res
     results = everyone.apply_fnc(load_rsa)
@@ -222,7 +232,7 @@ def aggregate():
 
     plt.tight_layout()
     fname = f"{data_dir}plots/rsa/rsa_{chan_sel}_{lock_event}_{filt}.png"
-    plt.savefig(fname)
+    #plt.savefig(fname)
     plt.show()
 
 
