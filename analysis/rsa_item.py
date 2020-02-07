@@ -107,9 +107,9 @@ def preprocess(n, lock_event='saccade', chan_sel='all', filt=[1, 30]):
 
 def corr_analysis(d):
     """
-    For each timepoint, check whether the spatial
-    x: Brain data (trial x channel x time)
-    labels: Label for each trial
+    For each timepoint, check whether the spatial patterns are more similar
+    between saccades toward the same item, compared with saccades toward
+    different items.
     """
     x = d['meg_data']
     presaccade_item = d['fix_info']['prev_stim']
