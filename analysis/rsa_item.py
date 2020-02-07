@@ -121,22 +121,25 @@ def corr_analysis(d):
     presaccade_item = presaccade_item[~nans].astype(np.int)
     postsaccade_item = postsaccade_item[~nans].astype(np.int)
 
-    # Get the transition label of each trial
+    # Get the transition label of each trial. E.g. if one saccade goes from
+    # item 1 to item 4, the label for that trial will be '1-4'
     trans_label = np.char.array(presaccade_item) + \
                     np.full(x.shape[0], b'-') + \
                     np.char.array(postsaccade_item)
     trans_label = trans_label.astype(str)
 
-    # Check how many of each transition we have
-    hist_labels, hist_counts = np.unique(trans_label, return_counts=True)
-    plt.bar(range(len(hist_labels)), hist_counts) 
-    plt.xticks(range(len(hist_labels)), hist_labels)
-    plt.setp(plt.gca().xaxis.get_majorticklabels(), rotation=90)
+    ## # Check how many of each transition we have
+    ## hist_labels, hist_counts = np.unique(trans_label, return_counts=True)
+    ## plt.bar(range(len(hist_labels)), hist_counts) 
+    ## plt.xticks(range(len(hist_labels)), hist_labels)
+    ## plt.setp(plt.gca().xaxis.get_majorticklabels(), rotation=90)
 
-    # Get all comparisons between trials
-    # Get all the unique 'same/diff' comparisons between transition types
+    # Get all the unique 'same/diff' comparisons between transition types.
+    # E.g. the saccades '1-5' and '2-5' are in the 'same' condition, whereas
+    # '0-1' and '2-3' are in the 'different' condition. The conditions are
+    # labeled in the function rsa_matrix().
+    rsa_mat, transition_labels = rsa_matrix()
     def find_unique_comp_inx(val):
-        #comp_inx = np.nonzero(np.tril(rsa_mat) == val)
         comp_inx = np.nonzero(rsa_mat == val)
         comps = [(transition_labels[pre], transition_labels[post])
                     for pre,post in zip(*comp_inx)]
@@ -145,16 +148,20 @@ def corr_analysis(d):
     same_comps = find_unique_comp_inx(1)
     diff_comps = find_unique_comp_inx(-1)
 
-    # Find all combinations of trials that are in one of these lists
-    trial_combinations = ((n1, n2) # Combinations of trial inx
+    # Find all combinations of trials that are in one of these lists. This is a
+    # list of all pairs of trials (by index).
+    trial_combinations = ((n1, n2)
                             for n1 in range(x.shape[0])
                             for n2 in range(x.shape[0]))
     same_trial_inx = [] # Keep track of inx in the corr mat
     diff_trial_inx = []
-    for trial_combo in trial_combinations:
+    for trial_combo in trial_combinations: # For each combination of 2 trials
         if trial_combo[0] == trial_combo[1]:
+            # Ignore fixations that have the same item 1 and item 2
             continue
+        # Get the labels for this combination of trials
         label_combo = (trans_label[trial_combo[0]], trans_label[trial_combo[1]])
+        # Check if that combination of labels is in the 'same' or 'diff' lists
         if label_combo in same_comps:
             same_trial_inx.append(trial_combo)
         elif label_combo in diff_comps:
@@ -172,14 +179,19 @@ def corr_analysis(d):
     same_corr_timecourse = []
     diff_corr_timecourse = []
     for i_time in tqdm(range(x.shape[2])):
+        # Get the correlations of all spatial patterns at this timepoint
         c = np.corrcoef(x[:,:,i_time])
 
+        # Pull out the correlations between pairs of saccades in the 'same' and
+        # 'different' conditions
         same_corr = c[tuple(zip(*same_trial_inx))]
         diff_corr = c[tuple(zip(*diff_trial_inx))]
 
+        # Average across all these correlations
         same_corr = same_corr.mean()
         diff_corr = diff_corr.mean()
 
+        # Keep track of this averaged value in the timecourse
         same_corr_timecourse.append(same_corr)
         diff_corr_timecourse.append(diff_corr)
 
