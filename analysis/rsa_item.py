@@ -195,18 +195,6 @@ def corr_analysis(d):
         same_corr_timecourse.append(same_corr)
         diff_corr_timecourse.append(diff_corr)
 
-    ## # Plot it
-    ## plt.subplot(2, 1, 1)
-    ## plt.plot(d['times'], same_corr_timecourse, '-r')
-    ## plt.plot(d['times'], diff_corr_timecourse, '-k')
-    ## plt.ylabel('R')
-    ## plt.subplot(2, 1, 2)
-    ## same_minus_diff = np.array(same_corr_timecourse) - np.array(diff_corr_timecourse)
-    ## plt.plot(d['times'], same_minus_diff)
-    ## plt.axhline(0, linestyle='--', color='k')
-    ## plt.ylabel('Same - Diff')
-    ## plt.xlabel('Time (s)')
-
     return same_corr_timecourse, diff_corr_timecourse
 
 
