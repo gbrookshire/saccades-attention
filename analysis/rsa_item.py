@@ -198,7 +198,7 @@ def corr_analysis(d):
     return same_corr_timecourse, diff_corr_timecourse
 
 
-def test_corr_analysis(): # FIXME -- doesn't work with new script
+def test_corr_analysis():
     """
     Test the analysis on simulated data
     """
@@ -210,6 +210,7 @@ def test_corr_analysis(): # FIXME -- doesn't work with new script
 
     # Make spatio-temporal patterns of activity for each response
     # Make each pattern only appear at the middle of the timepoints
+    # This simulation only makes response-induced patterns -- no predictions
     from scipy import stats
     pattern_env = np.zeros(n_timepoints)
     env_width = int(n_timepoints / 5)
@@ -230,7 +231,14 @@ def test_corr_analysis(): # FIXME -- doesn't work with new script
     noise_strength = 0.1
     x = x + np.random.normal(size=x.shape, scale=noise_strength)
 
-    same_coef, diff_coef = corr_analysis(x, trial_labels)
+    # Build the data structure
+    d = {}
+    d['meg_data'] = x
+    d['fix_info'] = {}
+    d['fix_info']['closest_stim'] = trial_labels
+    d['fix_info']['prev_stim'] = np.hstack([[np.nan], trial_labels[:-1]])
+
+    same_coef, diff_coef = corr_analysis(d)
     plt.plot(same_coef)
     plt.plot(diff_coef)
     plt.show()
