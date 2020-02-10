@@ -149,6 +149,7 @@ def aggregate():
         power.plot_topomap(axes=ax, **plot_params)
     plt.tight_layout()
     fname = f"{expt_info['data_dir']}plots/alpha_asym/alpha_asym_by_subj.png"
+    plt.savefig(fname)
     plt.show()
 
 
