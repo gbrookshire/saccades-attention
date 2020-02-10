@@ -247,7 +247,7 @@ def test_corr_analysis():
 def aggregate():
     import everyone
     chan_sel = 'all' # grad or mag or all
-    lock_event = 'saccade' # fixation or saccade
+    lock_event = 'fixation' # fixation or saccade
     filt = (1, 30) 
     filt = f"{filt[0]}-{filt[1]}"
     data_dir = expt_info['data_dir']
