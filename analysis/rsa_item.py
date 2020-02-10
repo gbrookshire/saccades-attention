@@ -246,16 +246,15 @@ def test_corr_analysis():
 
 def aggregate():
     import everyone
-    chan_sel = 'grad' # grad or mag or all
+    chan_sel = 'all' # grad or mag or all
     lock_event = 'saccade' # fixation or saccade
     filt = (1, 30) 
     filt = f"{filt[0]}-{filt[1]}"
     data_dir = expt_info['data_dir']
     def load_rsa(row):
         n = row['n']
-        dd = 'no_close_saccades' # Which version to use
-        fname = f"{data_dir}rsa/{dd}/{n}_{chan_sel}_{lock_event}_{filt}.h5"
-        res = mne.externals.h5io.write_hdf5(fname)
+        fname = f"{data_dir}rsa/{n}_{chan_sel}_{lock_event}_{filt}.h5"
+        res = mne.externals.h5io.read_hdf5(fname)
         return res
     results = everyone.apply_fnc(load_rsa)
     same_coef, diff_coef, times = zip(*results)
@@ -285,7 +284,7 @@ def aggregate():
 
     plt.tight_layout()
     fname = f"{data_dir}plots/rsa/rsa_{chan_sel}_{lock_event}_{filt}.png"
-    #plt.savefig(fname)
+    plt.savefig(fname)
     plt.show()
 
 
@@ -337,7 +336,7 @@ if __name__ == '__main__':
     
     chan_sel = 'all'
     filt = [1, 30]
-    lock_event = 'saccade'
+    lock_event = 'fixation'
     print(n, filt, chan_sel, lock_event)
     d = preprocess(n, lock_event, chan_sel, filt)
     same_coef, diff_coef = corr_analysis(d)
