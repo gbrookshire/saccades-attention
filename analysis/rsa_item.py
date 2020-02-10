@@ -348,6 +348,6 @@ if __name__ == '__main__':
 
     data_dir = expt_info['data_dir']
     fname = f"{data_dir}rsa/{n}_{chan_sel}_{lock_event}_{filt[0]}-{filt[1]}.h5"
-    mne.externals.h5io.write_hdf5([same_coef, diff_coef, d['times']], fname)
+    mne.externals.h5io.write_hdf5(fname, [same_coef, diff_coef, d['times']])
 
 
