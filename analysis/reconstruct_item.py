@@ -19,6 +19,12 @@ expt_info = json.load(open('expt_info.json'))
 
 
 def run(n): 
+    d = preproc(n)
+    results = fit(d)
+    return (results, d['times'])
+
+
+def preproc(n):
     # Load the data
     d = load_data.load_data(n)
 
@@ -27,7 +33,6 @@ def run(n):
         event_key = 'fix_on'
     elif locking_event == 'saccade':
         event_key = 'fix_off'
-
 
     # Select events for segmentation
     row_sel = d['fix_events'][:,2] == expt_info['event_dict'][event_key] 
@@ -49,7 +54,6 @@ def run(n):
     def preproc_erp_filt(raw):
         """ Filter the data as is standard for an ERP analysis
         """
-        # Filter the data
         # These parameters make sure the filter is *causal*, so all effects
         # can't bleed backward in time from post- to pre-saccade time-points
         raw.filter(l_freq=1, h_freq=40, # band-pass filter 
@@ -65,6 +69,10 @@ def run(n):
     d['y'] = d['fix_info']['closest_stim']
     d['y'] = d['y'].astype(int).to_numpy() 
 
+    return d
+
+
+def fit(d):
     # Reconstruct stimuli at each timepoint
     cv_params = {'cv': 5, 
                  'n_jobs': 5,
@@ -75,8 +83,7 @@ def run(n):
                   'max_iter': 1e4} 
     mdl = LogisticRegression(C=0.05, **mdl_params)
     results = reconstruct.reconstruct(mdl, d, **cv_params)
-
-    return (results, d['times'])
+    return results
 
 
 def plot(results, times):
