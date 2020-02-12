@@ -45,7 +45,7 @@ def preprocess(d, events, preproc_fnc=None, **epochs_kwargs):
                         proj=True,
                         **epochs_kwargs) 
     # Resample after epoching to make sure trigger times are correct
-    epochs.resample(100, n_jobs=3) 
+    epochs.resample(100, n_jobs=5) 
     # Reject trials that wre manually marked as bad
     meg_data = epochs.get_data()
     d['fix_info'] = d['fix_info'].iloc[epochs.selection] 
