@@ -101,6 +101,13 @@ def preprocess(n, lock_event='saccade', chan_sel='all', filt=[1, 30]):
     # Add important fields to the data
     d['meg_data'] = meg_data
     d['times'] = epochs.times
+    # Load info about which channels carry the most info about stim identity
+    fname = f"{expt_info['data_dir']}mi_peak/{n}_item.h5"
+    mi, t_peak, chan_order, chan_rank = mne.externals.h5io.read_hdf5(fname)
+    # Select grads/mags in the MI ordering
+    n_top_chans = 20 # How many channels to keep in the analysis
+    keep_chans = np.isin(epochs.info['ch_names'], chan_order[:n_top_chans])
+    d['mi_keep_chans'] = keep_chans
     
     return d
 
@@ -112,6 +119,7 @@ def corr_analysis(d):
     different items.
     """
     x = d['meg_data']
+    x = x[:, d['mi_keep_chans'], :]
     presaccade_item = d['fix_info']['prev_stim']
     postsaccade_item = d['fix_info']['closest_stim']
 
@@ -247,7 +255,7 @@ def test_corr_analysis():
 def aggregate():
     import everyone
     chan_sel = 'all' # grad or mag or all
-    lock_event = 'fixation' # fixation or saccade
+    lock_event = 'saccade' # fixation or saccade
     filt = (1, 30) 
     filt = f"{filt[0]}-{filt[1]}"
     data_dir = expt_info['data_dir']
@@ -336,13 +344,15 @@ if __name__ == '__main__':
     
     chan_sel = 'all'
     filt = [1, 30]
-    lock_event = 'fixation'
+    lock_event = 'saccade'
     print(n, filt, chan_sel, lock_event)
     d = preprocess(n, lock_event, chan_sel, filt)
     same_coef, diff_coef = corr_analysis(d)
 
     data_dir = expt_info['data_dir']
     fname = f"{data_dir}rsa/{n}_{chan_sel}_{lock_event}_{filt[0]}-{filt[1]}.h5"
-    mne.externals.h5io.write_hdf5(fname, [same_coef, diff_coef, d['times']])
+    mne.externals.h5io.write_hdf5(fname,
+                                  [same_coef, diff_coef, d['times']],
+                                  overwrite=True)
 
 
