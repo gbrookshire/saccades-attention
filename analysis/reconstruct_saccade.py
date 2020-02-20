@@ -17,8 +17,12 @@ import reconstruct
 
 expt_info = json.load(open('expt_info.json')) 
 
+def run(n):
+    d = preproc(n)
+    results = fit(d)
+    return (results, d['times'])
 
-def run(n): 
+def preproc(n):
     # Load the data
     d = load_data.load_data(n)
     # Select fixation offsets -- i.e. saccade onsets
@@ -75,9 +79,11 @@ def run(n):
                            #preproc_alpha_pow,
                            tmin=-1.0, tmax=0.5)
 
-    # Get alpha power
+    return d
 
 
+
+def fit(d):
     # Model parameters
 
     ## LASSO regressions
@@ -138,6 +144,11 @@ def run(n):
         d['y'] = d['fix_info'][f"{dim}_change"].copy().to_numpy()
         # Reconstruct stimuli at each timepoint
         results[dim] = reconstruct.reconstruct(mdl, d.copy(), **cv_params)
+
+    return results
+
+
+def run(n): 
 
     return (results, d['times'])
 
