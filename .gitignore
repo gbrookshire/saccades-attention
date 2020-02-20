@@ -3,6 +3,9 @@ ethics/
 eyelink/
 data/
 exp-scripts/checklist.pdf
+analysis/slurm-*.err
+analysis/slurm-*.out
+analysis/slurm-*.stats
 
 # Matlab stuff
 *.mat
