@@ -269,31 +269,41 @@ def aggregate():
     same_coef = np.array(same_coef)
     diff_coef = np.array(diff_coef)
 
+    def rsa_plot(x_same, x_diff):
+        # Plot the averages
+        plt.subplot(2, 1, 1)
+        plt.plot(times[0], x_same, '-r')
+        plt.plot(times[0], x_diff, '-k')
+        plt.text(-0.8, x_same.max() * 0.9, 'Same', color='r')
+        plt.text(-0.8, x_same.max() * 0.8, 'Diff', color='k')
+        plt.xlabel('Time (s)')
+        plt.ylabel('$R^2$')
+        # Plot the difference between same and diff trials
+        plt.subplot(2, 1, 2)
+        plt.axhline(y=0, linestyle='--', color='k')
+        plt.axvline(x=0, linestyle='--', color='k')
+        plt.plot(times[0], x_same - x_diff, '-b')
+        plt.xlabel('Time (s)')
+        plt.ylabel('Same - Diff')
+        plt.tight_layout()
+
     # Plot the averages
-    plt.subplot(2, 1, 1)
     same_mean = np.mean(same_coef, axis=0)
     diff_mean = np.mean(diff_coef, axis=0)
-    plt.plot(times[0], same_mean, '-r')
-    plt.plot(times[0], diff_mean, '-k')
-    plt.text(-0.8, same_mean.max() * 0.9, 'Same', color='r')
-    plt.text(-0.8, same_mean.max() * 0.8, 'Diff', color='k')
-    plt.xlabel('Time (s)')
-    plt.ylabel('$R^2$')
-
-    # Plot the difference between same and diff trials
-    plt.subplot(2, 1, 2)
-    same_minus_diff = same_coef - diff_coef
-    plt.plot(times[0], same_minus_diff.transpose(), '-k', alpha=0.3)
-    plt.axhline(y=0, linestyle='--', color='k')
-    plt.axvline(x=0, linestyle='--', color='k')
-    plt.plot(times[0], np.mean(same_minus_diff, axis=0), '-b')
-    plt.xlabel('Time (s)')
-    plt.ylabel('Same - Diff')
-
-    plt.tight_layout()
+    rsa_plot(same_mean, diff_mean)
+    plt.plot(times[0], (same_coef - diff_coef).transpose(),
+             '-k', alpha=0.3)
     fname = f"{data_dir}plots/rsa/rsa_{chan_sel}_{lock_event}_{filt}.png"
     plt.savefig(fname)
     plt.show()
+
+    # Plot the individual traces
+    for n in range(same_coef.shape[0]):
+        plt.close('all')
+        rsa_plot(same_coef[n,:], diff_coef[n,:])
+        save_dir =f"{data_dir}plots/rsa/indiv/" 
+        fname = f"{save_dir}/rsa_{chan_sel}_{lock_event}_{filt}_{n}.png"
+        plt.savefig(fname)
 
 
 def rsa_matrix(plot=False):
