@@ -74,13 +74,9 @@ def preproc(n):
         return raw
 
     # Preprocess the data
-    reconstruct.preprocess(d, events,
-                           #preproc_erp_filt,
-                           #preproc_alpha_pow,
-                           tmin=-1.0, tmax=0.5)
+    reconstruct.preprocess(d, events, preproc_erp_filt, tmin=-1.0, tmax=0.5)
 
     return d
-
 
 
 def fit(d):
