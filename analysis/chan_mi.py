@@ -3,10 +3,16 @@ Compute MI between data at each channel and some stimulus/response vector
 Use this for channel selection
 """
 
+import json
 import numpy as np
 import gcmi
 from tqdm import tqdm
+import matplotlib.pyplot as plt
+import mne
 from mne.externals.h5io import write_hdf5, read_hdf5
+
+expt_info = json.load(open('expt_info.json'))
+data_dir = expt_info['data_dir']
 
 
 def sig_deriv(x):
@@ -101,18 +107,46 @@ def find_peak(d, mi):
     return peak
 
 
-def plot(n, analysis_type):
-    """ Plot the topography of channels
-    n: subject number
-    analysis_type: item or sacc
+def load_raw(n):
+    """ Load the raw meg data for one subject
     """
-    # Read in a raw data file to get the 'info' object
     import pandas as pd
     from load_data import meg_filename
     subject_info = pd.read_csv(expt_info['data_dir'] + 'subject_info.csv',
                            engine='python', sep=',')
     fname = meg_filename(subject_info['meg'][n])
     raw = mne.io.read_raw_fif(fname)
+    return raw
+
+
+def plot_timecourse(n, analysis_type):
+    """ Plot the timecourse of MI at each channel, along with a high upper
+    quantile to see how the MI differs from what you would expect by chance.
+    """
+    # Read the MI
+    mi, peak = read_hdf5(f"{data_dir}mi_peak/{n}_{analysis_type}.h5")
+    perm_mi = read_hdf5(f"{data_dir}mi_peak/{n}_{analysis_type}_perm.h5")
+
+    # Show an upper percentile of the permuted data
+    quantile = 0.99
+    q = 1 - ((1 - quantile)/ 2)
+    upper_quant = np.squeeze(np.quantile(perm_mi, q, axis=0))
+
+    # Plot it
+    plt.plot(peak['times'], mi.T)
+    plt.plot(peak['times'], upper_quant.T, '-k')
+    #plt.plot(perm_mi[99,:,:].T, '-k') # One example permutation
+    plt.ylabel('MI (bits)')
+    plt.xlabel('Time (s)')
+
+
+def plot_topo(n, analysis_type):
+    """ Plot the topography of channels
+    n: subject number
+    analysis_type: item or sacc
+    """
+    # Read in a raw data file to get the 'info' object
+    raw = load_raw(n)
     # Read the MI
     fname = f"{data_dir}mi_peak/{n}_{analysis_type}.h5"
     mi, peak = read_hdf5(fname)
@@ -120,7 +154,7 @@ def plot(n, analysis_type):
     mi_info = mne.pick_info(raw.info, sel=mne.pick_types(raw.info, meg=True)) 
     mi_info['sfreq'] = 100. # After downsampling
     mi_evoked = mne.EvokedArray(mi, mi_info, tmin=peak['times'][0])
-    for ch_type in ('mag', 'grad', True): # Grads combined with RMS
+    for ch_type in ('mag', 'grad'): # Grads combined with RMS
         times = np.linspace(-0.2, 0.2, 9)
         mi_evoked.plot_topomap(times=times, #peak['times'][peak['t_inx']],
                             average=0.05, # Avg in time in a window this size
@@ -144,12 +178,9 @@ def plot(n, analysis_type):
 
 if __name__ == '__main__':
     import sys
-    import json
     import mne
     import reconstruct_item
     import reconstruct_saccade
-    expt_info = json.load(open('expt_info.json'))
-    data_dir = expt_info['data_dir']
 
     try:
         n = int(sys.argv[1])
@@ -178,3 +209,105 @@ if __name__ == '__main__':
     fname = f"{data_dir}mi_peak/{n}_{analysis_type}_perm.h5"
     write_hdf5(fname, perm_mi, overwrite=True)
 
+
+#### Sketchpad
+
+
+
+def aggregate(analysis_type = 'sacc'):
+    for n in [2,3,4,5,6]:
+        plt.subplot(3, 2, n)
+        plot_timecourse(n, analysis_type)
+        plt.tight_layout()
+
+
+
+
+# Cluster-based permutation test
+# https://mne.tools/stable/auto_tutorials/stats-source-space/
+   # plot_stats_cluster_spatio_temporal_repeated_measures_anova.html
+
+
+# Get connectivity
+ch_type = 'grad'
+connectivity, ch_names = mne.channels.find_ch_connectivity(raw.info,
+                                                           ch_type=ch_type)
+plt.imshow(connectivity.toarray(), cmap='gray')
+
+# Take only mags or grads
+raw = load_raw(n) # Read in a raw data file to get the 'info' object
+def ch_type_inx(ch_type):
+    """ Get indexes of mags or grads in the MI array
+    ch_type: 'mag'|'grad'
+    """
+    meg_info = mne.pick_info(raw.info, sel=mne.pick_types(raw.info, meg=True))
+    picks = mne.pick_types(meg_info, meg=ch_type)
+    return picks
+ch_inx = ch_type_inx(ch_type)
+x_emp = mi[:,ch_inx,:]
+x_perm = perm_mi[:,ch_inx,:]
+
+stat, clusters, pval, H0 = mne.stats.permutation_cluster_test(
+        X=[x_emp, x_perm],
+        n_permutations=100,
+        tail=0,
+        stat_fun=mne.stats.f_oneway,
+        #out_type='indices',
+        connectivity=connectivity,
+        )
+
+"""
+stat_fun: Should take a list of arrays as arguments
+    Could do a within-subjects regression by building a stat_fun that takes the
+    design matrix into account.
+"""
+
+n_subjects = 30
+n_permutations = 500
+
+# Make the design matrix
+conds_per_subj = [1] + ([0] * n_permutations) # 1=emp, 0=perm
+x = pd.DataFrame({'subj': np.repeat(range(n_subjects), len(conds_per_subj)),
+                  'cond': np.tile(conds_per_subj, n_subjects)})
+
+# Simulate some data
+y = np.random.normal(size=x.shape[0])
+y += np.repeat(np.random.normal(size=n_subjects), len(conds_per_subj)) # Subject offsets
+y += x['cond'] * 4 # Difference between conditions
+x['y'] = pd.Series(y, index=x.index)
+
+import statsmodels.api as sm
+import statsmodels.formula.api as smf
+
+md = smf.mixedlm("y ~ cond", x,
+                 groups=x['subj'], # Random intercepts for each subject
+                 re_formula="~cond") # Random slope for each subject
+mdf = md.fit()
+print(mdf.summary())
+
+# Then return mdf.tvalues, and set some sensible threshold in mne
+
+def lmer_statfun(X, design, param_name, **kwargs):
+    """ X: array (observation, channel, time)
+        design: pd.DataFrame
+    """
+    meg_data = np.reshape(X, [X.shape[0], -1) # Collapse later dims (other than obs)
+    stat = []
+    for i in range(x.shape[-1]):
+        data = design
+        data['y'] = pd.Series(meg_data[:,i], index=data.index)
+        md = smf.mixedlm(data=data, **kwargs)
+        mdf = md.fit()
+        s = mdf.tvalues[param_name]
+        stat.append(s)
+    stat = np.reshape(stat, X.shape[1:]) # Get back to original dimensions
+    return stat
+
+def statfun(X):
+    """ This would be passed to mne.stats.permutation_cluster_test
+    """
+    design = FILL_IN
+    param_name = FILL_IN
+    lmer_kwargs = FILL_IN
+    fnc = lmer_statfun(X, design, param_name, **lmer_kwargs)
+    return fnc
