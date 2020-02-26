@@ -40,15 +40,11 @@ def mi_item(d):
     return mi
 
 
-def mi_saccade_dir(d):
-    """ Compute MI between each MEG channel and saccade direction
+def mi_continuous(d, y):
+    """ Compute MI between each MEG channel and some continuous variable
     """
     meg_data = d['meg_data']
-    # Put together the saccade data
-    x_change, y_change = (d['fix_info'][f"{dim}_change"].copy().to_numpy()
-                            for dim in ('x', 'y'))
-    sacc = np.vstack([x_change, y_change])
-    sacc_gc = gcmi.copnorm(sacc)
+    y_gc = gcmi.copnorm(y)
     # Compute MI foe each channel and timepoint
     n_chans = meg_data.shape[1]
     n_timepoints = meg_data.shape[2]
@@ -57,8 +53,29 @@ def mi_saccade_dir(d):
         for i_time in range(n_timepoints):
             x = sig_deriv(meg_data[:, i_chan, i_time])
             x_gc = gcmi.copnorm(x)
-            m = gcmi.mi_gg(x_gc, sacc_gc, demeaned=True)
+            m = gcmi.mi_gg(x_gc, y_gc, demeaned=True)
             mi[i_chan, i_time] = m
+    return mi
+
+
+def mi_saccade_dir(d):
+    """ Compute MI between each MEG channel and saccade direction
+    """
+    # Put together the saccade data
+    x_change, y_change = (d['fix_info'][f"{dim}_change"].copy().to_numpy()
+                                for dim in ('x', 'y'))
+    sacc = np.vstack([x_change, y_change])
+    mi = mi_continuous(d, sacc)
+    return mi
+
+
+def mi_abs_loc(d):
+    """ Compute MI between each MEG channel and absolute allocentric location
+    """
+    # Put together the saccade data
+    loc = np.vstack([d['fix_info']['x_avg'],
+                     d['fix_info']['y_avg']])
+    mi = mi_continuous(d, loc)
     return mi
 
 
@@ -187,15 +204,18 @@ if __name__ == '__main__':
         analysis_type = sys.argv[2]
     except IndexError:
         n = int(input('Subject number: '))
-        analysis_type = input('Analysis type (item/sacc): ')
-    assert analysis_type in ('item', 'sacc')
+        analysis_type = input('Analysis type (item/sacc/loc): ')
+    assert analysis_type in ('item', 'sacc', 'loc')
 
     if analysis_type == 'item': # Get MI with item identity
         d = reconstruct_item.preproc(n)
         mi_fnc = mi_item
-    elif analysis_type == 'sacc': # Get MI with item identity
+    elif analysis_type == 'sacc': # Get MI with saccade direction
         d = reconstruct_saccade.preproc(n)
         mi_fnc = mi_saccade_dir
+    elif analysis_type == 'loc': # Get MI with allocentric location
+        d = reconstruct_saccade.preproc(n)
+        mi_fnc = mi_abs_loc
 
     # Compute MI
     mi = mi_fnc(d)
@@ -209,105 +229,3 @@ if __name__ == '__main__':
     fname = f"{data_dir}mi_peak/{n}_{analysis_type}_perm.h5"
     write_hdf5(fname, perm_mi, overwrite=True)
 
-
-#### Sketchpad
-
-
-
-def aggregate(analysis_type = 'sacc'):
-    for n in [2,3,4,5,6]:
-        plt.subplot(3, 2, n)
-        plot_timecourse(n, analysis_type)
-        plt.tight_layout()
-
-
-
-
-# Cluster-based permutation test
-# https://mne.tools/stable/auto_tutorials/stats-source-space/
-   # plot_stats_cluster_spatio_temporal_repeated_measures_anova.html
-
-
-# Get connectivity
-ch_type = 'grad'
-connectivity, ch_names = mne.channels.find_ch_connectivity(raw.info,
-                                                           ch_type=ch_type)
-plt.imshow(connectivity.toarray(), cmap='gray')
-
-# Take only mags or grads
-raw = load_raw(n) # Read in a raw data file to get the 'info' object
-def ch_type_inx(ch_type):
-    """ Get indexes of mags or grads in the MI array
-    ch_type: 'mag'|'grad'
-    """
-    meg_info = mne.pick_info(raw.info, sel=mne.pick_types(raw.info, meg=True))
-    picks = mne.pick_types(meg_info, meg=ch_type)
-    return picks
-ch_inx = ch_type_inx(ch_type)
-x_emp = mi[:,ch_inx,:]
-x_perm = perm_mi[:,ch_inx,:]
-
-stat, clusters, pval, H0 = mne.stats.permutation_cluster_test(
-        X=[x_emp, x_perm],
-        n_permutations=100,
-        tail=0,
-        stat_fun=mne.stats.f_oneway,
-        #out_type='indices',
-        connectivity=connectivity,
-        )
-
-"""
-stat_fun: Should take a list of arrays as arguments
-    Could do a within-subjects regression by building a stat_fun that takes the
-    design matrix into account.
-"""
-
-n_subjects = 30
-n_permutations = 500
-
-# Make the design matrix
-conds_per_subj = [1] + ([0] * n_permutations) # 1=emp, 0=perm
-x = pd.DataFrame({'subj': np.repeat(range(n_subjects), len(conds_per_subj)),
-                  'cond': np.tile(conds_per_subj, n_subjects)})
-
-# Simulate some data
-y = np.random.normal(size=x.shape[0])
-y += np.repeat(np.random.normal(size=n_subjects), len(conds_per_subj)) # Subject offsets
-y += x['cond'] * 4 # Difference between conditions
-x['y'] = pd.Series(y, index=x.index)
-
-import statsmodels.api as sm
-import statsmodels.formula.api as smf
-
-md = smf.mixedlm("y ~ cond", x,
-                 groups=x['subj'], # Random intercepts for each subject
-                 re_formula="~cond") # Random slope for each subject
-mdf = md.fit()
-print(mdf.summary())
-
-# Then return mdf.tvalues, and set some sensible threshold in mne
-
-def lmer_statfun(X, design, param_name, **kwargs):
-    """ X: array (observation, channel, time)
-        design: pd.DataFrame
-    """
-    meg_data = np.reshape(X, [X.shape[0], -1) # Collapse later dims (other than obs)
-    stat = []
-    for i in range(x.shape[-1]):
-        data = design
-        data['y'] = pd.Series(meg_data[:,i], index=data.index)
-        md = smf.mixedlm(data=data, **kwargs)
-        mdf = md.fit()
-        s = mdf.tvalues[param_name]
-        stat.append(s)
-    stat = np.reshape(stat, X.shape[1:]) # Get back to original dimensions
-    return stat
-
-def statfun(X):
-    """ This would be passed to mne.stats.permutation_cluster_test
-    """
-    design = FILL_IN
-    param_name = FILL_IN
-    lmer_kwargs = FILL_IN
-    fnc = lmer_statfun(X, design, param_name, **lmer_kwargs)
-    return fnc
