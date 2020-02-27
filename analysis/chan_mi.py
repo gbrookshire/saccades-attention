@@ -14,6 +14,8 @@ from mne.externals.h5io import write_hdf5, read_hdf5
 expt_info = json.load(open('expt_info.json'))
 data_dir = expt_info['data_dir']
 
+plt.ion()
+
 
 def sig_deriv(x):
     """ Make a combined signal of the raw signal and its derivative
@@ -123,6 +125,12 @@ def find_peak(d, mi):
             'chan_rank': chan_rank}
     return peak
 
+    """
+    For saccades, this is not what we want to do. We want to select channels
+    with the most information in the pre-stimulus times, because post-stimulus
+    times will be dominated by activity related to movement of the eyes.
+    """
+
 
 def load_raw(n):
     """ Load the raw meg data for one subject
@@ -149,12 +157,24 @@ def plot_timecourse(n, analysis_type):
     q = 1 - ((1 - quantile)/ 2)
     upper_quant = np.squeeze(np.quantile(perm_mi, q, axis=0))
 
-    # Plot it
-    plt.plot(peak['times'], mi.T)
-    plt.plot(peak['times'], upper_quant.T, '-k')
-    #plt.plot(perm_mi[99,:,:].T, '-k') # One example permutation
-    plt.ylabel('MI (bits)')
-    plt.xlabel('Time (s)')
+    # Read in a raw data file to get the 'info' object
+    raw = load_raw(n)
+    mi_info = mne.pick_info(raw.info, sel=mne.pick_types(raw.info, meg=True)) 
+    mi_info['sfreq'] = 100. # After downsampling
+    mi_evoked = mne.EvokedArray(mi, mi_info, tmin=peak['times'][0])
+    fig = mi_evoked.plot(spatial_colors=True, unit=False)
+    fig.axes[0].set_ylabel('Bits')
+    fig.axes[1].set_ylabel('Bits')
+    # Plot the upper percentile of permuted data
+    ### Still need to adjust this to select mags/grads
+    #fig.axes[0].plot(peak['times'], upper_quant.T, 'k', zorder=1000)
+
+    # # Plot it on a normal axis
+    # plt.plot(peak['times'], mi.T)
+    # plt.plot(peak['times'], upper_quant.T, '-k')
+    # #plt.plot(perm_mi[99,:,:].T, '-k') # One example permutation
+    # plt.ylabel('MI (bits)')
+    # plt.xlabel('Time (s)')
 
 
 def plot_topo(n, analysis_type):
@@ -179,7 +199,7 @@ def plot_topo(n, analysis_type):
                             vmin=0,
                             vmax=np.max,
                             contours=0,
-                            cmap='viridis', # 'viridis'
+                            cmap='viridis',
                             units='Bits',
                             scalings=dict(grad=1, mag=1),
                             cbar_fmt='%1.3f')
@@ -191,6 +211,61 @@ def plot_topo(n, analysis_type):
                             #                 markeredgecolor='w',
                             #                 linewidth=0,
                             #                 markersize=4)
+
+
+def plot_topo_avg(analysis_type):
+    """ Plot average topography over subjects
+    """
+    import everyone
+    def load_mi(row):
+        fname = f"{data_dir}mi_peak/{row['n']}_{analysis_type}.h5"
+        mi, peak = read_hdf5(fname)
+        return mi, peak
+
+    mi_all, peak_all = list(zip(*everyone.apply_fnc(load_mi)))
+    mi_avg = np.mean(mi_all, axis=0)
+
+    # Rectify and log-transform
+    mi_avg[mi_avg < 0] = 1e-6
+    #mi_avg = np.log10(mi_avg)
+    
+    # Read in a raw data file to get the 'info' object
+    raw = load_raw(2)
+
+    # Plot the topography
+    mi_info = mne.pick_info(raw.info, sel=mne.pick_types(raw.info, meg=True)) 
+    mi_info['sfreq'] = 100. # After downsampling
+    mi_evoked = mne.EvokedArray(mi_avg, mi_info, tmin=peak['times'][0])
+    for ch_type in ('mag', 'grad'): # Grads combined with RMS
+        times = np.linspace(-0.2, 0.2, 9)
+        mi_evoked.plot_topomap(times=times, #peak['times'][peak['t_inx']],
+                            average=0.05, # Avg in time in a window this size
+                            ch_type=ch_type,
+                            vmin=0,
+                            vmax=np.max,
+                            contours=0,
+                            cmap='viridis',
+                            units='Bits',
+                            scalings=dict(grad=1, mag=1),
+                            cbar_fmt='%1.3f')
+
+    # Plot MI in each sensor
+    lay = mne.channels.layout.find_layout(mi_info)
+    times = peak_all[0]['times']
+    t_sel = (-0.4 < times) & (times < -0.0)
+    m = np.mean(mi_avg[:, t_sel], axis=1) # Avg MI over the time range
+    m -= np.min(m) # Set minimum value to 0
+    m /= np.max(m) # Set maximum value to 1
+    cmap = plt.cm.Purples
+    colors = cmap(m)
+    plt.figure(figsize=(6, 6))
+    for i_chan in range(lay.pos.shape[0]):
+        plt.plot(lay.pos[i_chan,0], lay.pos[i_chan,1], 'o',
+                color=colors[i_chan,:],
+                markersize=9)
+    plt.box(False)
+    plt.xticks([])
+    plt.yticks([])
 
 
 if __name__ == '__main__':
