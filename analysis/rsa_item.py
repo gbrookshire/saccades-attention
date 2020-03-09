@@ -22,6 +22,7 @@ import mne
 
 import load_data
 import artifacts
+import dist_convert as dc
 
 expt_info = json.load(open('expt_info.json')) 
 
@@ -63,10 +64,23 @@ def preprocess(n, lock_event='saccade', chan_sel='all', filt=[1, 30]):
     new_obj = np.diff(d['fix_info']['closest_stim']) != 0
     new_obj = np.hstack((True, new_obj)) # First fixation is to a new object
 
+    # Select fixations to nearby objects
+    distance_threshold = 4.0 # visual degrees
+    x_avg = d['fix_info']['x_avg'].to_numpy()
+    y_avg = d['fix_info']['y_avg'].to_numpy()
+    x_change = x_avg[1:] - x_avg[:-1]
+    y_change = y_avg[1:] - y_avg[:-1]
+    sacc_dist = (x_change ** 2 + y_change ** 2) ** (1/2)
+    sacc_dist = dc.pix2deg(sacc_dist)
+    #plt.hist(sacc_dist, 50)
+    close_saccades = sacc_dist < distance_threshold
+    close_saccades = np.hstack([False, close_saccades])
+
     # Apply the selections
-    trial_sel = new_obj & ~too_close
+    trial_sel = new_obj & ~too_close & ~close_saccades
     d['fix_info'] = d['fix_info'].loc[trial_sel]
     events = events[trial_sel,:]
+    print(f"Trials kept in the analysis: {trial_sel.sum()}")
     
     # Preprocess the data
     d['raw'].load_data()
@@ -101,13 +115,13 @@ def preprocess(n, lock_event='saccade', chan_sel='all', filt=[1, 30]):
     # Add important fields to the data
     d['meg_data'] = meg_data
     d['times'] = epochs.times
-    # Load info about which channels carry the most info about stim identity
-    fname = f"{expt_info['data_dir']}mi_peak/{n}_item.h5"
-    mi, t_peak, chan_order, chan_rank = mne.externals.h5io.read_hdf5(fname)
-    # Select grads/mags in the MI ordering
-    n_top_chans = 20 # How many channels to keep in the analysis
-    keep_chans = np.isin(epochs.info['ch_names'], chan_order[:n_top_chans])
-    d['mi_keep_chans'] = keep_chans
+    # # Load info about which channels carry the most info about stim identity
+    # fname = f"{expt_info['data_dir']}mi_peak/{n}_item.h5"
+    # mi, t_peak, chan_order, chan_rank = mne.externals.h5io.read_hdf5(fname)
+    # # Select grads/mags in the MI ordering
+    # n_top_chans = 20 # How many channels to keep in the analysis
+    # keep_chans = np.isin(epochs.info['ch_names'], chan_order[:n_top_chans])
+    # d['mi_keep_chans'] = keep_chans
     
     return d
 
@@ -119,7 +133,7 @@ def corr_analysis(d):
     different items.
     """
     x = d['meg_data']
-    x = x[:, d['mi_keep_chans'], :]
+    ###x = x[:, d['mi_keep_chans'], :]
     presaccade_item = d['fix_info']['prev_stim']
     postsaccade_item = d['fix_info']['closest_stim']
 
