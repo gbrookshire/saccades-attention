@@ -63,11 +63,22 @@ def mi_continuous(d, y):
 def mi_saccade_dir(d):
     """ Compute MI between each MEG channel and saccade direction
     """
+    # FIXME --- NOT WORKING YET
     # Put together the saccade data
     x_change, y_change = (d['fix_info'][f"{dim}_change"].copy().to_numpy()
                                 for dim in ('x', 'y'))
     sacc = np.vstack([x_change, y_change])
     mi = mi_continuous(d, sacc)
+    return mi
+
+
+def mi_saccade_side(d):
+    """ Compute MI between each MEG channel and saccade leftward/rightward
+    """
+    x_change = d['fix_info']["x_change"].copy().to_numpy()
+    side = ['left' if x < 0 else 'right' for x in x_change]
+    d['y'] = side
+    mi = mi_item(d)
     return mi
 
 
@@ -280,7 +291,7 @@ if __name__ == '__main__':
     except IndexError:
         n = int(input('Subject number: '))
         analysis_type = input('Analysis type (item/sacc/loc): ')
-    assert analysis_type in ('item', 'sacc', 'loc')
+    assert analysis_type in ('item', 'sacc', 'sacc_side', 'loc')
 
     if analysis_type == 'item': # Get MI with item identity
         d = reconstruct_item.preproc(n)
@@ -288,6 +299,9 @@ if __name__ == '__main__':
     elif analysis_type == 'sacc': # Get MI with saccade direction
         d = reconstruct_saccade.preproc(n)
         mi_fnc = mi_saccade_dir
+    elif analysis_type == 'sacc_side': # MI with saccade side (left vs right)
+        d = reconstruct_saccade.preproc(n)
+        mi_fnc = mi_saccade_side
     elif analysis_type == 'loc': # Get MI with allocentric location
         d = reconstruct_saccade.preproc(n)
         mi_fnc = mi_abs_loc
@@ -295,12 +309,12 @@ if __name__ == '__main__':
     # Compute MI
     mi = mi_fnc(d)
     peak = find_peak(d, mi)
-    fname = f"{data_dir}mi_peak/{n}_{analysis_type}.h5"
+    fname = f"{data_dir}mi_peak/{analysis_type}/{n}.h5"
     write_hdf5(fname, [mi, peak], overwrite=True)
 
     # Compute permuted MI to see about chance levels
     k = 500
     perm_mi = permuted_mi(d, mi_fnc, k)
-    fname = f"{data_dir}mi_peak/{n}_{analysis_type}_perm.h5"
+    fname = f"{data_dir}mi_peak/{analysis_type}/{n}_perm.h5"
     write_hdf5(fname, perm_mi, overwrite=True)
 
