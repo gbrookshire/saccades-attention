@@ -15,6 +15,7 @@ import json
 import pickle
 import itertools
 import numpy as np
+import pandas as pd
 from itertools import combinations, permutations
 import matplotlib.pyplot as plt
 from tqdm import tqdm
@@ -75,6 +76,13 @@ def preprocess(n, lock_event='saccade', chan_sel='all', filt=[1, 30]):
     #plt.hist(sacc_dist, 50)
     close_saccades = sacc_dist < distance_threshold
     close_saccades = np.hstack([False, close_saccades])
+
+    # Get the time of the next saccade onset, and whether it's to a new item
+    t_this_fix_onset = d['fix_info']['start_meg']
+    t_next_sac_onset = d['fix_info']['end_meg']
+    fix_dur = t_next_sac_onset - t_this_fix_onset
+    d['fix_info']['fix_dur'] = pd.Series(fix_dur.to_numpy(),
+                                         index=d['fix_info'].index)
 
     # Apply the selections
     trial_sel = new_obj & ~too_close & ~close_saccades
@@ -361,6 +369,19 @@ def rsa_matrix(plot=False):
         print(f"{np.sum(rsa_mat == 0)} types of ignored saccades")
 
     return rsa_mat, transition_labels
+
+
+def plot_fix_duration_hist():
+    for n in [2,3,4,5,6]:
+        chan_sel = 'all'
+        filt = [1, 30]
+        lock_event = 'fixation'
+        d = preprocess(n, lock_event, chan_sel, filt)
+        plt.hist(d['fix_info']['fix_dur'], 40)
+        plt.xlabel('Time (ms)')
+        plt.ylabel('Count')
+        plt.savefig(f"../data/plots/{n}.png")
+        plt.close('all')
 
 
 if __name__ == '__main__':
