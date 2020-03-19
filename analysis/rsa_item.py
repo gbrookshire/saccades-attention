@@ -55,41 +55,41 @@ def preprocess(n, lock_event='saccade', chan_sel='all', filt=[1, 30]):
         events = events[:-1,:]
         events = np.vstack([[0, 0, 200], events])
 
-    # Only keep trials that didn't have another eye movement too recently
-    prior_saccade_thresh = 250 # In samples (i.e. ms)
-    prior_saccade_time = events[1:,0] - events[:-1,0]
-    too_close = prior_saccade_time < 250
-    too_close = np.hstack([[False], too_close])
+    # # Only keep trials that didn't have another eye movement too recently
+    # prior_saccade_thresh = 250 # In samples (i.e. ms)
+    # prior_saccade_time = events[1:,0] - events[:-1,0]
+    # too_close = prior_saccade_time < 250
+    # too_close = np.hstack([[False], too_close])
 
     # Select fixations to a new object
     new_obj = np.diff(d['fix_info']['closest_stim']) != 0
     new_obj = np.hstack((True, new_obj)) # First fixation is to a new object
 
-    # Select fixations to nearby objects
-    distance_threshold = 4.0 # visual degrees
-    x_avg = d['fix_info']['x_avg'].to_numpy()
-    y_avg = d['fix_info']['y_avg'].to_numpy()
-    x_change = x_avg[1:] - x_avg[:-1]
-    y_change = y_avg[1:] - y_avg[:-1]
-    sacc_dist = (x_change ** 2 + y_change ** 2) ** (1/2)
-    sacc_dist = dc.pix2deg(sacc_dist)
-    #plt.hist(sacc_dist, 50)
-    close_saccades = sacc_dist < distance_threshold
-    close_saccades = np.hstack([False, close_saccades])
+    # # Select fixations to nearby objects
+    # distance_threshold = 4.0 # visual degrees
+    # x_avg = d['fix_info']['x_avg'].to_numpy()
+    # y_avg = d['fix_info']['y_avg'].to_numpy()
+    # x_change = x_avg[1:] - x_avg[:-1]
+    # y_change = y_avg[1:] - y_avg[:-1]
+    # sacc_dist = (x_change ** 2 + y_change ** 2) ** (1/2)
+    # sacc_dist = dc.pix2deg(sacc_dist)
+    # #plt.hist(sacc_dist, 50)
+    # close_saccades = sacc_dist < distance_threshold
+    # close_saccades = np.hstack([False, close_saccades])
+
+    # Apply the selections
+    trial_sel = new_obj # & ~too_close & ~close_saccades
+    d['fix_info'] = d['fix_info'].loc[trial_sel]
+    events = events[trial_sel,:]
+    print(f"Trials kept in the analysis: {trial_sel.sum()}")
 
     # Get the time of the next saccade onset, and whether it's to a new item
     t_this_fix_onset = d['fix_info']['start_meg']
-    t_next_sac_onset = d['fix_info']['end_meg']
+    t_next_sac_onset = np.hstack([d['fix_info']['start_meg'][1:], [np.nan]])
     fix_dur = t_next_sac_onset - t_this_fix_onset
     d['fix_info']['fix_dur'] = pd.Series(fix_dur.to_numpy(),
                                          index=d['fix_info'].index)
 
-    # Apply the selections
-    trial_sel = new_obj & ~too_close & ~close_saccades
-    d['fix_info'] = d['fix_info'].loc[trial_sel]
-    events = events[trial_sel,:]
-    print(f"Trials kept in the analysis: {trial_sel.sum()}")
-    
     # Preprocess the data
     d['raw'].load_data()
     # Reject ICA artifacts
@@ -105,7 +105,7 @@ def preprocess(n, lock_event='saccade', chan_sel='all', filt=[1, 30]):
                            stim=False, exclude='bads')
     epochs = mne.Epochs(d['raw'],
                         events,
-                        tmin=-1.0, tmax=0.5,
+                        tmin=-1.0, tmax=1.0,
                         reject_by_annotation=True,
                         preload=True,
                         baseline=None,
@@ -157,6 +157,9 @@ def corr_analysis(d):
                     np.full(x.shape[0], b'-') + \
                     np.char.array(postsaccade_item)
     trans_label = trans_label.astype(str)
+
+    # To look at "retrospective" encoding, shift all labels back one
+    trans_label = np.hstack([trans_label[1:], np.nan])
 
     ## # Check how many of each transition we have
     ## hist_labels, hist_counts = np.unique(trans_label, return_counts=True)
@@ -277,7 +280,7 @@ def test_corr_analysis():
 def aggregate():
     import everyone
     chan_sel = 'all' # grad or mag or all
-    lock_event = 'saccade' # fixation or saccade
+    lock_event = 'fixation' # fixation or saccade
     filt = (1, 30) 
     filt = f"{filt[0]}-{filt[1]}"
     data_dir = expt_info['data_dir']
@@ -300,6 +303,7 @@ def aggregate():
         plt.text(-0.8, x_same.max() * 0.8, 'Diff', color='k')
         plt.xlabel('Time (s)')
         plt.ylabel('$R^2$')
+        plt.title(lock_event)
         # Plot the difference between same and diff trials
         plt.subplot(2, 1, 2)
         plt.axhline(y=0, linestyle='--', color='k')
@@ -317,7 +321,7 @@ def aggregate():
              '-k', alpha=0.3)
     fname = f"{data_dir}plots/rsa/rsa_{chan_sel}_{lock_event}_{filt}.png"
     plt.savefig(fname)
-    plt.show()
+    #plt.show()
 
     # Plot the individual traces
     for n in range(same_coef.shape[0]):
@@ -326,6 +330,7 @@ def aggregate():
         save_dir =f"{data_dir}plots/rsa/indiv/" 
         fname = f"{save_dir}/rsa_{chan_sel}_{lock_event}_{filt}_{n}.png"
         plt.savefig(fname)
+    plt.close("all")
 
 
 def rsa_matrix(plot=False):
@@ -377,10 +382,12 @@ def plot_fix_duration_hist():
         filt = [1, 30]
         lock_event = 'fixation'
         d = preprocess(n, lock_event, chan_sel, filt)
-        plt.hist(d['fix_info']['fix_dur'], 40)
+        fix_dur = d['fix_info']['fix_dur']
+        fix_dur = fix_dur[fix_dur < 2000] # Only keep durations < 2 s
+        plt.hist(fix_dur, 60)
         plt.xlabel('Time (ms)')
         plt.ylabel('Count')
-        plt.savefig(f"../data/plots/{n}.png")
+        plt.savefig(f"../data/plots/fixation-dur-hist/{n}.png")
         plt.close('all')
 
 
@@ -389,7 +396,7 @@ if __name__ == '__main__':
     
     chan_sel = 'all'
     filt = [1, 30]
-    lock_event = 'saccade'
+    lock_event = 'fixation'
     print(n, filt, chan_sel, lock_event)
     d = preprocess(n, lock_event, chan_sel, filt)
     same_coef, diff_coef = corr_analysis(d)
