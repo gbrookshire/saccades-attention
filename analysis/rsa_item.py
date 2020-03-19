@@ -158,8 +158,8 @@ def corr_analysis(d):
                     np.char.array(postsaccade_item)
     trans_label = trans_label.astype(str)
 
-    # To look at "retrospective" encoding, shift all labels back one
-    trans_label = np.hstack([trans_label[1:], np.nan])
+    # # To look at "retrospective" encoding, shift all labels back one
+    # trans_label = np.hstack([trans_label[1:], np.nan])
 
     ## # Check how many of each transition we have
     ## hist_labels, hist_counts = np.unique(trans_label, return_counts=True)
