@@ -286,7 +286,8 @@ def aggregate():
     data_dir = expt_info['data_dir']
     def load_rsa(row):
         n = row['n']
-        fname = f"{data_dir}rsa/{n}_{chan_sel}_{lock_event}_{filt}.h5"
+        ver = 'normal_analysis' # 'normal_analysis' or 'retro'
+        fname = f"{data_dir}rsa/{ver}/{n}_{chan_sel}_{lock_event}_{filt}.h5"
         res = mne.externals.h5io.read_hdf5(fname)
         return res
     results = everyone.apply_fnc(load_rsa)
@@ -373,6 +374,28 @@ def rsa_matrix(plot=False):
         print(f"{np.sum(rsa_mat == -1)} types of 'different' saccades")
         print(f"{np.sum(rsa_mat == 0)} types of ignored saccades")
 
+    return rsa_mat, transition_labels
+
+
+def rsa_matrix_retro():
+    """ Same as above but for 'retrospective' processing
+    """
+    items = range(6)
+    transitions = list(permutations(items, 2))
+    # Sort by post-saccade item
+    transitions = sorted(transitions, key=lambda x: (x[1], x[0])) 
+    transition_labels = [f'{e[0]}-{e[1]}' for e in transitions]
+    rsa_mat = np.zeros([len(transitions)] * 2)
+    for i_x, t_x in enumerate(transitions):
+        for i_y, t_y in enumerate(transitions):
+            # All 4 items are different
+            if len(set(t_x + t_y)) == 4: 
+                rsa_mat[i_y, i_x] = -1
+            # Same item before fixation, different item after
+            elif (t_x[0] == t_y[0]) and (t_x[1] != t_y[1]):
+                rsa_mat[i_y, i_x] = 1 
+            else:
+                pass # Neither a "same" nor a "different" saccade
     return rsa_mat, transition_labels
 
 
