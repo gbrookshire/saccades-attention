@@ -5,6 +5,7 @@ Load the data for one participant
 import os
 import json
 import socket
+import re
 import pandas as pd
 import mne
 
@@ -76,5 +77,11 @@ def meg_filename(subj_fname):
     dir_cont = os.listdir(subj_dir)
     assert len(dir_cont) == 1
     subj_dir = f"{subj_dir}/{dir_cont[0]}"
-    raw_fname = f"{subj_dir}/{os.listdir(subj_dir)[0]}"
+    fif_files = [fn for fn in os.listdir(subj_dir) if fn.endswith('.fif')]
+    # Find the base file -- doesn't have a number before .fif
+    pattern = "[0-9]*_[a-z0-9]{4}\.fif"
+    base_fname = [e for e in os.listdir(subj_dir) if re.match(pattern, e)]
+    assert len(base_fname) == 1
+    base_fname = base_fname[0]
+    raw_fname = f"{subj_dir}/{base_fname}"
     return raw_fname
