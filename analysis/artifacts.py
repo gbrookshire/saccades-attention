@@ -10,14 +10,19 @@ import mne
 from load_data import meg_filename
 
 expt_info = json.load(open('expt_info.json'))
-subject_info = pd.read_csv(expt_info['data_dir'] + 'subject_info.csv',
+
+if socket.gethostname() == 'colles-d164179':
+    data_dir = expt_info['data_dir']['external']
+else:
+    data_dir = expt_info['data_dir']['standard']
+
+subject_info = pd.read_csv(data_dir + 'subject_info.csv',
                            engine='python', sep=',')
 
 
 def identify_artifacts(n):
     """ Identify artifacts for a given subject number.
     """
-    data_dir = expt_info['data_dir']
     subj_fname = subject_info['meg'][n]
 
     # Read in the data

@@ -12,7 +12,11 @@ import mne
 from mne.externals.h5io import write_hdf5, read_hdf5
 
 expt_info = json.load(open('expt_info.json'))
-data_dir = expt_info['data_dir']
+
+if socket.gethostname() == 'colles-d164179':
+    data_dir = expt_info['data_dir']['external']
+else:
+    data_dir = expt_info['data_dir']['standard']
 
 plt.ion()
 

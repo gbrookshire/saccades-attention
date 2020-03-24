@@ -9,7 +9,13 @@ import json
 import csv
 
 expt_info = json.load(open('expt_info.json'))
-with open(expt_info['data_dir'] + 'subject_info.csv', 'r') as f:
+
+if socket.gethostname() == 'colles-d164179':
+    data_dir = expt_info['data_dir']['external']
+else:
+    data_dir = expt_info['data_dir']['standard']
+
+with open(data_dir + 'subject_info.csv', 'r') as f:
     reader = csv.DictReader(f)
     subject_info = list(reader)
 

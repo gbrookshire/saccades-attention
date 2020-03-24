@@ -27,6 +27,12 @@ import dist_convert as dc
 
 expt_info = json.load(open('expt_info.json')) 
 
+if socket.gethostname() == 'colles-d164179':
+    data_dir = expt_info['data_dir']['external']
+else:
+    data_dir = expt_info['data_dir']['standard']
+    
+
 def preprocess(n, lock_event='saccade', chan_sel='all', filt=[1, 30]):
     """
     lock_event: saccade or fixation
@@ -124,7 +130,7 @@ def preprocess(n, lock_event='saccade', chan_sel='all', filt=[1, 30]):
     d['meg_data'] = meg_data
     d['times'] = epochs.times
     # # Load info about which channels carry the most info about stim identity
-    # fname = f"{expt_info['data_dir']}mi_peak/{n}_item.h5"
+    # fname = f"{data_dir}mi_peak/{n}_item.h5"
     # mi, t_peak, chan_order, chan_rank = mne.externals.h5io.read_hdf5(fname)
     # # Select grads/mags in the MI ordering
     # n_top_chans = 20 # How many channels to keep in the analysis
@@ -283,7 +289,6 @@ def aggregate():
     lock_event = 'fixation' # fixation or saccade
     filt = (1, 30) 
     filt = f"{filt[0]}-{filt[1]}"
-    data_dir = expt_info['data_dir']
     def load_rsa(row):
         n = row['n']
         ver = 'normal_analysis' # 'normal_analysis' or 'retro'
@@ -367,7 +372,7 @@ def rsa_matrix(plot=False):
         plt.setp(plt.gca().xaxis.get_majorticklabels(), rotation=90)
         plt.yticks(range(len(transitions)), transition_labels)
 
-        fname = f"{expt_info['data_dir']}plots/rsa/rsa_matrix.png"
+        fname = f"{data_dir}plots/rsa/rsa_matrix.png"
         plt.savefig(fname)
 
         print(f"{np.sum(rsa_mat == 1)} types of 'same' saccades")
@@ -424,7 +429,6 @@ if __name__ == '__main__':
     d = preprocess(n, lock_event, chan_sel, filt)
     same_coef, diff_coef = corr_analysis(d)
 
-    data_dir = expt_info['data_dir']
     fname = f"{data_dir}rsa/{n}_{chan_sel}_{lock_event}_{filt[0]}-{filt[1]}.h5"
     mne.externals.h5io.write_hdf5(fname,
                                   [same_coef, diff_coef, d['times']],

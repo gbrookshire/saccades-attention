@@ -13,6 +13,11 @@ import load_data
 
 expt_info = json.load(open('expt_info.json'))
 
+if socket.gethostname() == 'colles-d164179':
+    data_dir = expt_info['data_dir']['external']
+else:
+    data_dir = expt_info['data_dir']['standard']
+
 
 def compute_alpha_asym(n):
     # Load the data
@@ -113,7 +118,7 @@ def aggregate():
     # Combine across all participants
     import everyone
     def load_power(row):
-        fname = f"{expt_info['data_dir']}tfr/{row['n']}_diff-tfr.h5"
+        fname = f"{data_dir}tfr/{row['n']}_diff-tfr.h5"
         power = mne.time_frequency.read_tfrs(fname)[0]
         return power
     power_list = everyone.apply_fnc(load_power)
@@ -137,7 +142,7 @@ def aggregate():
                        colorbar=False)
     power_avg.plot_topomap(**plot_params)
     plt.tight_layout()
-    fname = f"{expt_info['data_dir']}plots/alpha_asym/alpha_asym_avg.png"
+    fname = f"{data_dir}plots/alpha_asym/alpha_asym_avg.png"
     plt.savefig(fname)
     plt.show()
 
@@ -148,7 +153,7 @@ def aggregate():
         i_plot += 1
         power.plot_topomap(axes=ax, **plot_params)
     plt.tight_layout()
-    fname = f"{expt_info['data_dir']}plots/alpha_asym/alpha_asym_by_subj.png"
+    fname = f"{data_dir}plots/alpha_asym/alpha_asym_by_subj.png"
     plt.savefig(fname)
     plt.show()
 
@@ -162,7 +167,7 @@ if __name__ == '__main__':
     n = int(n)
     power = compute_alpha_asym(n)
     for side in ('left', 'right', 'diff'):
-        fname = f"{expt_info['data_dir']}tfr/{n}_{side}-tfr.h5"
+        fname = f"{data_dir}tfr/{n}_{side}-tfr.h5"
         power[side].save(fname, overwrite=True)
 
 

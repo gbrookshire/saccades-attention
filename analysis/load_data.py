@@ -4,6 +4,7 @@ Load the data for one participant
 
 import os
 import json
+import socket
 import pandas as pd
 import mne
 
@@ -11,9 +12,14 @@ import eyelink_parser
 import fixation_events
 
 expt_info = json.load(open('expt_info.json'))
-subject_info = pd.read_csv(expt_info['data_dir'] + 'subject_info.csv',
+
+if socket.gethostname() == 'colles-d164179':
+    data_dir = expt_info['data_dir']['external']
+else:
+    data_dir = expt_info['data_dir']['standard']
+
+subject_info = pd.read_csv(data_dir + 'subject_info.csv',
                            engine='python', sep=',')
-data_dir = expt_info['data_dir']
     
 
 def load_data(n):

@@ -14,6 +14,11 @@ import stim_positions
 
 expt_info = json.load(open('expt_info.json')) 
 
+if socket.gethostname() == 'colles-d164179':
+    data_dir = expt_info['data_dir']['external']
+else:
+    data_dir = expt_info['data_dir']['standard']
+
 
 def _closest_stim(x, y):
     """ Find the closest stimulus to the given position
@@ -174,7 +179,7 @@ def demo():
               'behav': '2019-11-04-1527.csv'}
     
     # Load the MEG data
-    fname = expt_info['data_dir'] + 'raw/' + fnames['meg'] 
+    fname = data_dir + 'raw/' + fnames['meg'] 
     raw = mne.io.read_raw_fif(fname)
     events = mne.find_events(raw, # Segment out the MEG events
                              stim_channel='STI101',
@@ -182,11 +187,11 @@ def demo():
                              shortest_event=1)
     
     # Read in the EyeTracker data
-    fname = expt_info['data_dir'] + 'eyelink/ascii/' + fnames['eye']
+    fname = data_dir + 'eyelink/ascii/' + fnames['eye']
     eye_data = eyelink_parser.EyelinkData(fname)
     
     # Load behavioral data
-    fname = expt_info['data_dir'] + 'logfiles/' + fnames['behav']
+    fname = data_dir + 'logfiles/' + fnames['behav']
     behav = pd.read_csv(fname) 
     
     # Get the fixation events

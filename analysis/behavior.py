@@ -12,8 +12,13 @@ import plot_setup
 plot_setup.setup()
 
 expt_info = json.load(open('expt_info.json'))
-subject_info = pd.read_csv(expt_info['data_dir'] + 'subject_info.csv') 
-data_dir = expt_info['data_dir']
+
+if socket.gethostname() == 'colles-d164179':
+    data_dir = expt_info['data_dir']['external']
+else:
+    data_dir = expt_info['data_dir']['standard']
+
+subject_info = pd.read_csv(data_dir + 'subject_info.csv') 
 
 def coerce_numeric(x):
     """ Coerce a vector of strings into numeric data
@@ -96,7 +101,7 @@ def plot_results(acc, rt):
     f.set_size_inches(6, 2)
     f.tight_layout()
     plt.show()
-    fname = f"{expt_info['data_dir']}plots/behavior/acc_rt.pdf"
+    fname = f"{data_dir}plots/behavior/acc_rt.pdf"
     plt.savefig(fname)
 
 

@@ -15,6 +15,11 @@ import reconstruct
 
 expt_info = json.load(open('expt_info.json')) 
 
+if socket.gethostname() == 'colles-d164179':
+    data_dir = expt_info['data_dir']['external']
+else:
+    data_dir = expt_info['data_dir']['standard']
+
 
 def run(n): 
     # Load the data
@@ -150,7 +155,7 @@ if __name__ == "__main__":
         n = input('Subject number: ')
     n = int(n)
     results, times = run(n)
-    fname = f"{expt_info['data_dir']}reconstruct/location/{n}.pkl"
+    fname = f"{data_dir}reconstruct/location/{n}.pkl"
     pickle.dump([results, times], open(fname, 'wb'))
 
 
