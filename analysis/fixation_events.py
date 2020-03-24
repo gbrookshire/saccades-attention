@@ -3,6 +3,7 @@
 
 import os 
 import json
+import socket
 import numpy as np
 import pandas as pd
 import mne
