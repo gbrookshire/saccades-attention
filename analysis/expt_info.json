@@ -11,7 +11,10 @@
         "fix_off": 200
     },
 
-    "data_dir": "../data/",
+    "data_dir": {
+        "standard": "../data/",
+        "external": "/media/geoff/Seagate2TB/geoff/saccades-attention/"
+    },
 
     "stim_size_deg": 2.0,
     "stim_dist_deg": 3.0,
