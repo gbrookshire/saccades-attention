@@ -164,8 +164,15 @@ def corr_analysis(d):
                     np.char.array(postsaccade_item)
     trans_label = trans_label.astype(str)
 
-    # # To look at "retrospective" encoding, shift all labels back one
+    # # Another way to look at predictive processing.
+    # # If people saccade from A -> B -> C, can we decode at fixation onset at B
+    # # that they are about to look to C?
     # trans_label = np.hstack([trans_label[1:], np.nan])
+
+    # "Retrospective" processing
+    # When people saccade from A -> B, does some activity from A linger (or get
+    # reactivated) when they fixate on B?
+    trans_label = np.hstack([np.nan, trans_label[:-1]])
 
     ## # Check how many of each transition we have
     ## hist_labels, hist_counts = np.unique(trans_label, return_counts=True)
