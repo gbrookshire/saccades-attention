@@ -7,6 +7,7 @@ import os
 import sys
 import json
 import csv
+import socket
 
 expt_info = json.load(open('expt_info.json'))
 
