@@ -75,6 +75,9 @@ def preproc(n):
     d['y'] = d['fix_info']['closest_stim']
     d['y'] = d['y'].astype(int).to_numpy() 
 
+    # Model "retrospective" coding
+    d['y'] = np.hstack([0, d['y'][:-1]])
+
     return d
 
 
@@ -92,7 +95,39 @@ def fit(d):
     return results
 
 
+def model_adjacent_items(d):
+    """
+    Look at how brain activity corresponds to items at different lags.
+        item n-1
+        item n
+        item n+1
+    """
+    y_real = d['y'].copy()
+    
+    # Normal analysis - does brain activity correspond to this fixation
+    d['y'] = y_real 
+    results = fit(d)
+    accuracy = [r['test_score'].mean() for r in results] 
+    plt.plot(d['times'], accuracy)
+
+    # Predictive analysis - does brain activity correspond to item n+1
+    d['y'] = np.hstack([y_real[1:], 0])
+    results = fit(d)
+    accuracy = [r['test_score'].mean() for r in results] 
+    plt.plot(d['times'], accuracy)
+
+    # Retrospective analysis - does brain activity correspond to item n-1
+    d['y'] = np.hstack([0, y_real[:-1]])
+    results = fit(d)
+    accuracy = [r['test_score'].mean() for r in results] 
+    plt.plot(d['times'], accuracy)
+
+    plt.xlabel('Time (s)')
+    plt.ylabel('Accuracy')
+
+
 def plot(results, times):
+    import mne
     # Get the accuracy
     accuracy = [r['test_score'].mean() for r in results] 
     # Plot the results
