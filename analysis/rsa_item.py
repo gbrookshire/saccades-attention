@@ -169,10 +169,10 @@ def corr_analysis(d):
     # # that they are about to look to C?
     # trans_label = np.hstack([trans_label[1:], np.nan])
 
-    # "Retrospective" processing
-    # When people saccade from A -> B, does some activity from A linger (or get
-    # reactivated) when they fixate on B?
-    trans_label = np.hstack([np.nan, trans_label[:-1]])
+    # # "Retrospective" processing
+    # # When people saccade from A -> B, does some activity from A linger (or get
+    # # reactivated) when they fixate on B?
+    # trans_label = np.hstack([np.nan, trans_label[:-1]])
 
     ## # Check how many of each transition we have
     ## hist_labels, hist_counts = np.unique(trans_label, return_counts=True)
