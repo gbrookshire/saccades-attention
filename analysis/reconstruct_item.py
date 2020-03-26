@@ -8,6 +8,7 @@ prediction or sensory pre-processing.
 import sys
 import json
 import pickle
+import socket
 import numpy as np
 from sklearn.linear_model import LogisticRegression
 import matplotlib.pyplot as plt
