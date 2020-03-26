@@ -296,9 +296,9 @@ def aggregate():
     lock_event = 'fixation' # fixation or saccade
     filt = (1, 30) 
     filt = f"{filt[0]}-{filt[1]}"
+    ver = 'predict_one_ahead' # 'normal' etc
     def load_rsa(row):
         n = row['n']
-        ver = 'normal_analysis' # 'normal_analysis' or 'retro'
         fname = f"{data_dir}rsa/{ver}/{n}_{chan_sel}_{lock_event}_{filt}.h5"
         res = mne.externals.h5io.read_hdf5(fname)
         return res
@@ -329,21 +329,22 @@ def aggregate():
     # Plot the averages
     same_mean = np.mean(same_coef, axis=0)
     diff_mean = np.mean(diff_coef, axis=0)
+    plt.close('all')
     rsa_plot(same_mean, diff_mean)
     plt.plot(times[0], (same_coef - diff_coef).transpose(),
              '-k', alpha=0.3)
-    fname = f"{data_dir}plots/rsa/rsa_{chan_sel}_{lock_event}_{filt}.png"
+    fname = f"{data_dir}plots/rsa/{ver}/{chan_sel}_{lock_event}_{filt}.png"
     plt.savefig(fname)
     #plt.show()
 
-    # Plot the individual traces
-    for n in range(same_coef.shape[0]):
-        plt.close('all')
-        rsa_plot(same_coef[n,:], diff_coef[n,:])
-        save_dir =f"{data_dir}plots/rsa/indiv/" 
-        fname = f"{save_dir}/rsa_{chan_sel}_{lock_event}_{filt}_{n}.png"
-        plt.savefig(fname)
-    plt.close("all")
+    # # Plot the individual traces
+    # for n in range(same_coef.shape[0]):
+    #     plt.close('all')
+    #     rsa_plot(same_coef[n,:], diff_coef[n,:])
+    #     save_dir =f"{data_dir}plots/rsa/{ver}/indiv/" 
+    #     fname = f"{save_dir}/{chan_sel}_{lock_event}_{filt}_{n}.png"
+    #     plt.savefig(fname)
+    # plt.close("all")
 
 
 def rsa_matrix(plot=False):
