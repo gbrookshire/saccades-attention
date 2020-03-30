@@ -26,6 +26,10 @@ else:
 
 def run(n): 
     d = preproc(n)
+
+    # # Model "retrospective" coding
+    # d['y'] = np.hstack([0, d['y'][:-1]])
+
     results = fit(d)
     return (results, d['times'])
 
@@ -74,9 +78,6 @@ def preproc(n):
     # In this case, it's the stimulus label
     d['y'] = d['fix_info']['closest_stim']
     d['y'] = d['y'].astype(int).to_numpy() 
-
-    # Model "retrospective" coding
-    d['y'] = np.hstack([0, d['y'][:-1]])
 
     return d
 
