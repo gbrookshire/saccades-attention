@@ -183,18 +183,25 @@ def plot(results, times):
     # plt.plot(x, y, '*r')
 
 
-def aggregate():
-    # Get and plot average accuracy
+def load_results(timelock_evt='fixation', version='normal'):
+    """ Load the results of these analyses.
+    timelock_event: fixation | saccade
+    version: normal | retro
+    """
     acc = []
     t = []
     for n in (2,3,4,5,6):
-        analysis_type = 'fix_onset' # saccade_onset, fix_onset
-        fname = f"../data/reconstruct/item/{analysis_type}/{n}.pkl"
+        fname = f"{data_dir}/reconstruct/item/{timelock_evt}/{version}/{n}.pkl"
         results, times = pickle.load(open(fname, 'rb'))
         accuracy = [r['test_score'].mean() for r in results]
         acc.append(accuracy)
         t.append(times)
     acc = np.array(acc)
+    return acc, times
+
+
+def aggregate(acc, times):
+    # Get and plot average accuracy
     acc_mean = np.mean(acc, 0)
     plt.plot(times, acc.T, '-k', alpha=0.3) # Individual subjects
     # sem = lambda x,axis: np.std(x, axis=axis) / np.sqrt(x.shape[axis]) 
@@ -203,11 +210,35 @@ def aggregate():
     #                  facecolor='blue', edgecolor='none', alpha=0.5)
     plt.plot(times, acc_mean, '-b')
     plt.axvline(x=0, color='black', linestyle='-') # Fixation onset
-    plt.axhline(y=1/6, color='black', linestyle='--') # Chance level
     plt.xlabel('Time (s)')
     plt.ylabel('Accuracy')
     plt.xlim(times.min(), times.max())
     plt.show()
+
+
+def compare_conditions():
+    """ Compare decoding of the next item, and of the *previous* item
+    """
+    res_normal, times = load_results('fixation', 'normal')
+    res_retro, _ = load_results('fixation', 'retro')
+    res_diff = res_normal - res_retro
+
+    plt.subplot(3, 1, 1)
+    aggregate(res_normal, times)
+    plt.axhline(y=1/6, color='black', linestyle='--') # Chance level
+    plt.ylim([0.1, 0.4])
+    plt.title('Next fixation')
+    plt.subplot(3, 1, 2)
+    aggregate(res_retro, times)
+    plt.axhline(y=1/6, color='black', linestyle='--') # Chance level
+    plt.ylim([0.1, 0.4])
+    plt.title('Retrospective')
+    plt.subplot(3, 1, 3)
+    aggregate(res_diff, times)
+    plt.axhline(y=0, color='black', linestyle='--')
+    plt.title('Difference')
+    plt.tight_layout()
+
 
 
 if __name__ == "__main__":
