@@ -11,7 +11,7 @@ import socket
 import numpy as np
 from sklearn.linear_model import LogisticRegression
 import matplotlib.pyplot as plt
-from mne.externals.h5io import write_hdf5, read_hdf5
+import pickle
 
 import load_data
 import reconstruct
@@ -218,6 +218,6 @@ if __name__ == "__main__":
     n = int(n)
     results, times = run(n)
     fname = f"{data_dir}reconstruct/item/{n}.pkl"
-    write_hdf5(fname, [results, times], overwrite=True)
+    pickle.dump([results, times], open(fname, 'wb'))
 
 
