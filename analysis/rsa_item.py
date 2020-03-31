@@ -221,25 +221,62 @@ def corr_analysis(d):
     ## print(n_same)
     ## print(n_diff / n_same)
 
+    ## Standard version
+    # # For each timepoint, get the difference between same- and diff- trials
+    # same_corr_timecourse = []
+    # diff_corr_timecourse = []
+    # for i_time in tqdm(range(x.shape[2])):
+    #     # Get the correlations of all spatial patterns at this timepoint
+    #     c = np.corrcoef(x[:,:,i_time])
+
+    #     # Pull out the correlations between pairs of saccades in the 'same' and
+    #     # 'different' conditions
+    #     same_corr = c[tuple(zip(*same_trial_inx))]
+    #     diff_corr = c[tuple(zip(*diff_trial_inx))]
+
+    #     # Average across all these correlations
+    #     same_corr = same_corr.mean()
+    #     diff_corr = diff_corr.mean()
+
+    #     # Keep track of this averaged value in the timecourse
+    #     same_corr_timecourse.append(same_corr)
+    #     diff_corr_timecourse.append(diff_corr)
+
+    # Temporal generalization
     # For each timepoint, get the difference between same- and diff- trials
-    same_corr_timecourse = []
-    diff_corr_timecourse = []
-    for i_time in tqdm(range(x.shape[2])):
-        # Get the correlations of all spatial patterns at this timepoint
-        c = np.corrcoef(x[:,:,i_time])
+    same_corr_timecourse = np.full([x.shape[2], x.shape[2]], np.nan)
+    diff_corr_timecourse = same_corr_timecourse.copy()
+    for i_time_1 in range(x.shape[2]):
+        for i_time_2 in range(x.shape[2]):
+            # Get all the correlations of spatial patterns between these times
+            c = np.full([x.shape[0], x.shape[0]], np.nan)
+            for i_trial_1 in range(x.shape[0]):
+                for i_trial_2 in range(x.shape[0]):
+                    corr = np.corrcoef(x[i_trial_1, :, i_time_1],
+                                       x[i_trial_2, :, i_time_2])
+                    corr = corr[0,1] # Get corr b/w the two vars
+                    c[i_trial_1, i_trial_2] = corr
+            print(i_time_1, i_time_2)
+            print(c)
+            # TODO This is redundant now -- make it so it doesn't compute
+            # anything on the top half of the diagonal. That's true of temporal generalization but not the coefficients down here -- why?
 
-        # Pull out the correlations between pairs of saccades in the 'same' and
-        # 'different' conditions
-        same_corr = c[tuple(zip(*same_trial_inx))]
-        diff_corr = c[tuple(zip(*diff_trial_inx))]
 
-        # Average across all these correlations
-        same_corr = same_corr.mean()
-        diff_corr = diff_corr.mean()
+            # Get the correlations of all spatial patterns at this timepoint
+            c = np.corrcoef(x[:,:,i_time])
 
-        # Keep track of this averaged value in the timecourse
-        same_corr_timecourse.append(same_corr)
-        diff_corr_timecourse.append(diff_corr)
+            # Pull out the correlations between pairs of saccades in the 'same'
+            # and 'different' conditions
+            same_corr = c[tuple(zip(*same_trial_inx))]
+            diff_corr = c[tuple(zip(*diff_trial_inx))]
+
+            # Average across all these correlations
+            same_corr = same_corr.mean()
+            diff_corr = diff_corr.mean()
+
+            # Keep track of this averaged value in the timecourse
+            same_corr_timecourse.append(same_corr)
+            diff_corr_timecourse.append(diff_corr)
 
     return same_corr_timecourse, diff_corr_timecourse
 
@@ -256,7 +293,6 @@ def temporal_generalization(d):
         for t_2 in range(times.size):
             pass
             # FIXME
-
 
 
 def test_corr_analysis():
