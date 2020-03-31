@@ -244,6 +244,21 @@ def corr_analysis(d):
     return same_corr_timecourse, diff_corr_timecourse
 
 
+def temporal_generalization(d):
+    """ Check whether the patterns time-locked to item N (sensory processing)
+    are similar to the patterns time-locked to item N+1 (retrospective
+    processing, reactivation, etc)
+    """
+    times = d['times']
+    same_mat = np.full([times.size, times.size], np.nan)
+    diff_mat = np.full([times.size, times.size], np.nan)
+    for t_1 in range(times.size): # Tile the whole space of time-points
+        for t_2 in range(times.size):
+            pass
+            # FIXME
+
+
+
 def test_corr_analysis():
     """
     Test the analysis on simulated data
