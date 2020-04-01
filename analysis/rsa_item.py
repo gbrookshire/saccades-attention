@@ -252,6 +252,7 @@ def corr_analysis(d):
 
     return same_corr_timecourse, diff_corr_timecourse
 
+
 def _corrcoef_by_column(O, P):
     """ Find coorrelations between each pair of columns b/w O and P
     Adapted from https://github.com/ikizhvatov/efficient-columnwise-correlation
@@ -266,32 +267,6 @@ def _corrcoef_by_column(O, P):
     varO = np.einsum("nt,nt->t", DO, DO, optimize='optimal')
     tmp = np.einsum("m,t->mt", varP, varO, optimize='optimal')
     return cov / np.sqrt(tmp)
-
-###    # FIXME delete this -- we don't actually care about temporal generalization
-###    # Temporal generalization
-###    # For each timepoint, get the difference between same- and diff- trials
-###    def average_corr(i_time_1, i_time_2, trial_combos):
-###        """ Compute the average correlations across combinations of trials
-###        """
-###        corr_per_trial = []
-###        for i_trial_1, i_trial_2 in tqdm(trial_combos):
-###            corr = np.corrcoef(x[i_trial_1, :, i_time_1],
-###                               x[i_trial_2, :, i_time_2])
-###            corr_per_trial.append(corr[0, 1])
-###        return np.mean(corr_per_trial)
-###    same_corr_mat = np.full([x.shape[2], x.shape[2]], np.nan)
-###    diff_corr_mat = same_corr_mat.copy()
-###    for i_time_1 in range(x.shape[2]):
-###        for i_time_2 in range(x.shape[2]):
-###            # Compute temporal generalization across time-points by averaging
-###            # correlations between trials
-###            same_corr = average_corr(i_time_1, i_time_2, same_trial_inx)
-###            same_corr_mat[i_time_1, i_time_2] = same_corr
-###
-###            diff_corr = average_corr(i_time_1, i_time_2, diff_trial_inx)
-###            diff_corr_mat[i_time_1, i_time_2] = diff_corr
-###
-###    return same_corr_timecourse, diff_corr_timecourse
 
 
 def test_corr_analysis():
