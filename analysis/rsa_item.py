@@ -221,78 +221,77 @@ def corr_analysis(d):
     ## print(n_same)
     ## print(n_diff / n_same)
 
-    ## Standard version
-    # # For each timepoint, get the difference between same- and diff- trials
-    # same_corr_timecourse = []
-    # diff_corr_timecourse = []
-    # for i_time in tqdm(range(x.shape[2])):
-    #     # Get the correlations of all spatial patterns at this timepoint
-    #     c = np.corrcoef(x[:,:,i_time])
-
-    #     # Pull out the correlations between pairs of saccades in the 'same' and
-    #     # 'different' conditions
-    #     same_corr = c[tuple(zip(*same_trial_inx))]
-    #     diff_corr = c[tuple(zip(*diff_trial_inx))]
-
-    #     # Average across all these correlations
-    #     same_corr = same_corr.mean()
-    #     diff_corr = diff_corr.mean()
-
-    #     # Keep track of this averaged value in the timecourse
-    #     same_corr_timecourse.append(same_corr)
-    #     diff_corr_timecourse.append(diff_corr)
-
-    # Temporal generalization
+    # Standard version
     # For each timepoint, get the difference between same- and diff- trials
-    same_corr_timecourse = np.full([x.shape[2], x.shape[2]], np.nan)
-    diff_corr_timecourse = same_corr_timecourse.copy()
-    for i_time_1 in range(x.shape[2]):
-        for i_time_2 in range(x.shape[2]):
-            # Get all the correlations of spatial patterns between these times
-            c = np.full([x.shape[0], x.shape[0]], np.nan)
-            for i_trial_1 in range(x.shape[0]):
-                for i_trial_2 in range(x.shape[0]):
-                    corr = np.corrcoef(x[i_trial_1, :, i_time_1],
-                                       x[i_trial_2, :, i_time_2])
-                    corr = corr[0,1] # Get corr b/w the two vars
-                    c[i_trial_1, i_trial_2] = corr
-            print(i_time_1, i_time_2)
-            print(c)
-            # TODO This is redundant now -- make it so it doesn't compute
-            # anything on the top half of the diagonal. That's true of temporal generalization but not the coefficients down here -- why?
+    same_corr_timecourse = []
+    diff_corr_timecourse = []
+    for i_time in tqdm(range(x.shape[2])):
 
+        # # ~~~ Normal version ~~~
+        # # Get the correlations of all spatial patterns at this timepoint
+        # c = np.corrcoef(x[:,:,i_time])
 
-            # Get the correlations of all spatial patterns at this timepoint
-            c = np.corrcoef(x[:,:,i_time])
+        # ~~~ Compare spatial patterns in perception vs reactivation
+        nan_trial = np.full(x.shape[1], np.nan)
+        percep_data = x[:,:,i_time]
+        reactiv_data = np.vstack([x[1:,:,i_time], nan_trial])
+        c = _corrcoef_by_column(percep_data.T, reactiv_data.T)
 
-            # Pull out the correlations between pairs of saccades in the 'same'
-            # and 'different' conditions
-            same_corr = c[tuple(zip(*same_trial_inx))]
-            diff_corr = c[tuple(zip(*diff_trial_inx))]
+        # Pull out the correlations between pairs of saccades in the 'same' and
+        # 'different' conditions
+        same_corr = c[tuple(zip(*same_trial_inx))]
+        diff_corr = c[tuple(zip(*diff_trial_inx))]
 
-            # Average across all these correlations
-            same_corr = same_corr.mean()
-            diff_corr = diff_corr.mean()
+        # Average across all these correlations
+        same_corr = np.nanmean(same_corr)
+        diff_corr = np.nanmean(diff_corr)
 
-            # Keep track of this averaged value in the timecourse
-            same_corr_timecourse.append(same_corr)
-            diff_corr_timecourse.append(diff_corr)
+        # Keep track of this averaged value in the timecourse
+        same_corr_timecourse.append(same_corr)
+        diff_corr_timecourse.append(diff_corr)
 
     return same_corr_timecourse, diff_corr_timecourse
 
-
-def temporal_generalization(d):
-    """ Check whether the patterns time-locked to item N (sensory processing)
-    are similar to the patterns time-locked to item N+1 (retrospective
-    processing, reactivation, etc)
+def _corrcoef_by_column(O, P):
+    """ Find coorrelations between each pair of columns b/w O and P
+    Adapted from https://github.com/ikizhvatov/efficient-columnwise-correlation
     """
-    times = d['times']
-    same_mat = np.full([times.size, times.size], np.nan)
-    diff_mat = np.full([times.size, times.size], np.nan)
-    for t_1 in range(times.size): # Tile the whole space of time-points
-        for t_2 in range(times.size):
-            pass
-            # FIXME
+    (n, t) = O.shape      # n traces of t samples
+    (n_bis, m) = P.shape  # n predictions for each of m candidates
+    # Compute O - mean(0) and P - mean(P)
+    DO = O - (np.einsum("nt->t", O, optimize='optimal') / np.double(n))
+    DP = P - (np.einsum("nm->m", P, optimize='optimal') / np.double(n))
+    cov = np.einsum("nm,nt->mt", DP, DO, optimize='optimal')
+    varP = np.einsum("nm,nm->m", DP, DP, optimize='optimal')
+    varO = np.einsum("nt,nt->t", DO, DO, optimize='optimal')
+    tmp = np.einsum("m,t->mt", varP, varO, optimize='optimal')
+    return cov / np.sqrt(tmp)
+
+###    # FIXME delete this -- we don't actually care about temporal generalization
+###    # Temporal generalization
+###    # For each timepoint, get the difference between same- and diff- trials
+###    def average_corr(i_time_1, i_time_2, trial_combos):
+###        """ Compute the average correlations across combinations of trials
+###        """
+###        corr_per_trial = []
+###        for i_trial_1, i_trial_2 in tqdm(trial_combos):
+###            corr = np.corrcoef(x[i_trial_1, :, i_time_1],
+###                               x[i_trial_2, :, i_time_2])
+###            corr_per_trial.append(corr[0, 1])
+###        return np.mean(corr_per_trial)
+###    same_corr_mat = np.full([x.shape[2], x.shape[2]], np.nan)
+###    diff_corr_mat = same_corr_mat.copy()
+###    for i_time_1 in range(x.shape[2]):
+###        for i_time_2 in range(x.shape[2]):
+###            # Compute temporal generalization across time-points by averaging
+###            # correlations between trials
+###            same_corr = average_corr(i_time_1, i_time_2, same_trial_inx)
+###            same_corr_mat[i_time_1, i_time_2] = same_corr
+###
+###            diff_corr = average_corr(i_time_1, i_time_2, diff_trial_inx)
+###            diff_corr_mat[i_time_1, i_time_2] = diff_corr
+###
+###    return same_corr_timecourse, diff_corr_timecourse
 
 
 def test_corr_analysis():
