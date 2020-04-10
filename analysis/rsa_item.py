@@ -285,15 +285,16 @@ def simple_reactivation(d):
         corr_by_trial_rand = []
         for i_trial in range(1, x.shape[0]):
             # Get the real correlation
-            c = np.corrcoef(x[i_trial, :, i_time],
-                            x[i_trial-1, :, i_time])[0, 1]
-            corr_by_trial_real.append(c)
+            c_real = np.corrcoef(x[i_trial, :, i_time],
+                                 x[i_trial-1, :, i_time])[0,1]
+            corr_by_trial_real.append(c_real)
             # Get the random correlation
             curr_trans = trans_label[i_trial] # Which stims did this fix go b/w
             diff_trans = np.nonzero(trans_label != curr_trans)[0] # Diff stims
-            c = np.corrcoef(x[i_trial, :, i_time],
-                            x[np.random.choice(diff_trans), :, i_time])[0, 1]
-            corr_by_trial_rand.append(c)
+            rand_trial = np.random.choice(diff_trans)
+            c_rand = np.corrcoef(x[i_trial, :, i_time],
+                                 x[rand_trial, :, i_time])[0,1]
+            corr_by_trial_rand.append(c_rand)
         corr_timecourse_real.append(np.mean(corr_by_trial_real))
         corr_timecourse_rand.append(np.mean(corr_by_trial_rand))
 
