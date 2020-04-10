@@ -253,6 +253,58 @@ def corr_analysis(d):
     return same_corr_timecourse, diff_corr_timecourse
 
 
+def simple_reactivation(d):
+    """ Check whether activity at item N+1 is similar to activity at item N
+    """
+
+    x = d['meg_data'].copy()
+
+    # Get the transition labels to ensure that the randomly permuted
+    # correlations don't come from or go to the same item as the compared item.
+    # This helps make the randomly permuted data comparable to the experimental
+    # data.
+    presaccade_item = d['fix_info']['prev_stim']
+    postsaccade_item = d['fix_info']['closest_stim']
+    # Exclude trials that don't haev a previous stim
+    nans = np.isnan(presaccade_item)
+    x = x[~nans,:,:]
+    presaccade_item = presaccade_item[~nans].astype(np.int)
+    postsaccade_item = postsaccade_item[~nans].astype(np.int)
+    # Get the transition label of each trial. E.g. if one saccade goes from
+    # item 1 to item 4, the label for that trial will be '1-4'
+    trans_label = np.char.array(presaccade_item) + \
+                    np.full(x.shape[0], b'-') + \
+                    np.char.array(postsaccade_item)
+    trans_label = trans_label.astype(str)
+
+    # Find the correlations
+    corr_timecourse_real = []
+    corr_timecourse_rand = []
+    for i_time in tqdm(range(x.shape[2])):
+        corr_by_trial_real = []
+        corr_by_trial_rand = []
+        for i_trial in range(1, x.shape[0]):
+            # Get the real correlation
+            c = np.corrcoef(x[i_trial, :, i_time],
+                            x[i_trial-1, :, i_time])[0, 1]
+            corr_by_trial_real.append(c)
+            # Get the random correlation
+            curr_trans = trans_label[i_trial] # Which stims did this fix go b/w
+            diff_trans = np.nonzero(trans_label != curr_trans)[0] # Diff stims
+            c = np.corrcoef(x[i_trial, :, i_time],
+                            x[np.random.choice(diff_trans), :, i_time])[0, 1]
+            corr_by_trial_rand.append(c)
+        corr_timecourse_real.append(np.mean(corr_by_trial_real))
+        corr_timecourse_rand.append(np.mean(corr_by_trial_rand))
+
+    plt.plot(d['times'], corr_timecourse_real, label='corr(n, n+1)')
+    plt.plot(d['times'], corr_timecourse_rand, label='corr(n, rand)')
+    plt.axhline(y=0, linestyle='--', color='k')
+    plt.ylabel('R')
+    plt.xlabel('Time (s)')
+    plt.legend()
+
+
 def _corrcoef_by_column(O, P):
     """ Find coorrelations between each pair of columns b/w O and P
     Adapted from https://github.com/ikizhvatov/efficient-columnwise-correlation
@@ -321,7 +373,7 @@ def aggregate():
     lock_event = 'fixation' # fixation or saccade
     filt = (1, 30) 
     filt = f"{filt[0]}-{filt[1]}"
-    ver = 'predict_one_ahead' # 'normal' etc
+    ver = 'normal_vs_retro' # 'normal' etc
     def load_rsa(row):
         n = row['n']
         fname = f"{data_dir}rsa/{ver}/{n}_{chan_sel}_{lock_event}_{filt}.h5"
