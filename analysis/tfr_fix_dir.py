@@ -4,6 +4,7 @@ Do we see alpha power asymmetries that predict the direction of the saccade?
 """
 
 import json
+import socket
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -158,6 +159,43 @@ def aggregate():
     plt.show()
 
 
+def overall_tfr(n):
+    # Load the data
+    d = load_data.load_data(n)
+    # Select fixation offsets -- i.e. saccade onsets
+    row_sel = d['fix_events'][:,2] == expt_info['event_dict']['fix_off']
+    events = d['fix_events'][row_sel, :] 
+
+    # Reject ICA artifacts
+    d['raw'].load_data()
+    d['ica'].apply(d['raw']) 
+    
+    # Select MEG channels
+    picks = mne.pick_types(d['raw'].info,
+                           meg=True, eeg=False, eog=False,
+                           stim=False, exclude='bads')
+
+    # Epoch the data
+    epochs = mne.Epochs(d['raw'],
+                        events,
+                        reject_by_annotation=True,
+                        preload=True,
+                        baseline=None,
+                        picks=picks,
+                        proj=True,
+                        tmin=-1.0, tmax=1.0)
+
+    # Compute the TFR
+    freqs = n_cycles = 3
+    tfr_params = {'freqs': np.logspace(*np.log10([4, 40]), num=20),
+                    'n_cycles': 3,
+                    'use_fft': True,
+                    'return_itc': True,
+                    'decim': 10,
+                    'n_jobs': 5}
+    power, itc = tfr_morlet(epochs, **tfr_params)
+    return power, itc
+
 if __name__ == '__main__':
     import sys
     try:
@@ -165,9 +203,17 @@ if __name__ == '__main__':
     except IndexError:
         n = input('Subject number: ')
     n = int(n)
-    power = compute_alpha_asym(n)
-    for side in ('left', 'right', 'diff'):
-        fname = f"{data_dir}tfr/{n}_{side}-tfr.h5"
-        power[side].save(fname, overwrite=True)
 
+    # # Alpha asymmetries
+    # power = compute_alpha_asym(n)
+    # for side in ('left', 'right', 'diff'):
+    #     fname = f"{data_dir}tfr/{n}_{side}-tfr.h5"
+    #     power[side].save(fname, overwrite=True)
+
+    # Compute TFR and ITPC
+    power, itc = overall_tfr(n)
+    power.save(f"{data_dir}/tfr/{n}_overall-pow-tfr.h5",
+               overwrite=True)
+    itc.save(f"{data_dir}/tfr/{n}_overall-itc-tfr.h5",
+             overwrite=True)
 
