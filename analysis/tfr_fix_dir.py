@@ -196,6 +196,36 @@ def overall_tfr(n):
     power, itc = tfr_morlet(epochs, **tfr_params)
     return power, itc
 
+
+def aggreagate_itpc():
+    """ Take the average ITPC across subjects
+    """
+    import everyone
+    def load_itpc(row):
+        fname = f"{data_dir}/tfr/{row['n']}_overall-itc-tfr.h5"
+        itpc = mne.time_frequency.read_tfrs(fname)[0]
+        return itpc
+    itpc_list = everyone.apply_fnc(load_itpc) # Data for each subject
+    # Combine into averaged data across subjects
+    itpc_all = np.full([len(itpc_list)] + list(itpc_list[0].data.shape),
+                       np.nan)
+    for i_sub in range(len(itpc_list)):
+        itpc_all[i_sub,...] = itpc_list[i_sub].data
+    itpc_avg = mne.time_frequency.AverageTFR(itpc_list[0].info,
+                                             itpc_all.mean(axis=0),
+                                             itpc_list[0].times,
+                                             itpc_list[0].freqs,
+                                             len(itpc_list))
+
+    # # Plot one subject
+    # n = 2
+    # itpc_list[3].plot_joint()
+
+    # # Plot the average over subjects
+    # itpc_avg.plot_joint()
+
+
+
 if __name__ == '__main__':
     import sys
     try:
