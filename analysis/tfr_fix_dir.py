@@ -48,7 +48,7 @@ def compute_alpha_asym(n):
     # Only keep trials that didn't have another eye movement too recently
     prior_saccade_thresh = 250 # In samples (i.e. ms)
     prior_saccade_time = events[1:,0] - events[:-1,0]
-    too_close = prior_saccade_time < 250
+    too_close = prior_saccade_time < prior_saccade_thresh
     too_close = np.hstack([[False], too_close])
     
     # Apply the selections
@@ -165,6 +165,16 @@ def overall_tfr(n):
     # Select fixation offsets -- i.e. saccade onsets
     row_sel = d['fix_events'][:,2] == expt_info['event_dict']['fix_off']
     events = d['fix_events'][row_sel, :] 
+
+    # Only keep trials that didn't have another eye movement too recently
+    prior_saccade_thresh = 500 # In samples (i.e. ms)
+    prior_saccade_time = events[1:,0] - events[:-1,0]
+    too_close = prior_saccade_time < prior_saccade_thresh
+    too_close = np.hstack([[False], too_close])
+    
+    # Apply the trial selections
+    trial_sel = ~too_close
+    events = events[trial_sel,:]
 
     # Reject ICA artifacts
     d['raw'].load_data()
