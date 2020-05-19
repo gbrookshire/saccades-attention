@@ -98,6 +98,10 @@ def trf_eog_trialwise(n):
                picks=['eog'],
                method='fir', phase='minimum' # causal filter
                )
+
+    # Take the temporal derivative of EOG to look at changes in eye pos
+    raw.apply_function(fun=np.gradient,
+                       picks=['eog'])
     
     # Segment into epochs
     epochs = mne.Epochs(raw,
@@ -117,40 +121,84 @@ def trf_eog_trialwise(n):
     
     # Get the data. (epoch, channel, time)
     x = epochs.get_data()
-    
-    # Compute the TRF
     tmin = -0.5
     tmax = 0.5
     eog_chan_inx = mne.pick_types(epochs.info, meg=False, eog=True)
     meg_chan_inx = mne.pick_types(epochs.info, meg=True, eog=False)
-    trf_epochs = []
-    for i_epoch in range(len(epochs)):
-        x_meg = x[i_epoch, meg_chan_inx, :].T
-        x_eog = x[i_epoch, eog_chan_inx, :].T
-        x_eog_deriv = np.apply_along_axis(np.gradient, axis=0, arr=x_eog)
-        y = x_eog_deriv
-        #y = x_eog
-        w, t, i = mtrf_train(stim=y, # Array (time, param)
-                             resp=x_meg, # Array (time, chan)
-                             fs=epochs.info['sfreq'], # Sampling freq
-                             mapping_direction=1, # Forward model
-                             tmin=(tmin * 1000), # Min time in ms
-                             tmax=(tmax * 1000), # Max time in ms
-                             reg_lambda=1e0)
-        trf_epochs.append(w)
-    trf_arr = np.stack(trf_epochs)
-    trf_avg = np.mean(trf_arr, axis=0)
+
+    # # Run cross-validation to find the optimal lambda parameter
+    # # Cross-validate for the time that's expected to show the strongest response
+    # x_meg_cv = np.swapaxes(x[:, meg_chan_inx, :], 1, 2) # (trial, time, chan)
+    # x_eog_cv = np.swapaxes(x[:, eog_chan_inx, :], 1, 2) # (trial, time, chan)
+    # lambda_cv_exp = np.linspace(-10, 10, 5)
+    # lambda_cv_vals = 10 ** lambda_cv_exp
+    # r, p, mse, pred, model = mtrf_crossval(stim=x_eog_cv,
+    #                                        resp=x_meg_cv,
+    #                                        fs=epochs.info['sfreq'],
+    #                                        mapping_direction=1,
+    #                                        tmin=tmin,
+    #                                        tmax=tmax,
+    #                                        reg_lambda=lambda_cv_vals)
+    # # Shape of r, p, mse:  (trial, lambda, channel)
+    # # Shape of pred: list (1 elem for each trial) of arrays (lambda, ???, channel)
+    # # model.shape : (trial, lambda, lag, target (?), feature)
+    # best_chan = np.unravel_index(np.argmax(r), r.shape)
+    # plt.subplot(2, 2, 1)
+    # plt.title('CV accuracy')
+    # plt.errorbar(lambda_cv_exp,
+    #              np.mean(r, axis=(0, 2)),
+    #              np.mean(np.std(r, axis=0), axis=-1) / np.sqrt(x.shape[0]))
+    # plt.xlabel('Regularization ($10 ^ \lambda$)')
+    # plt.ylabel('Correlation')
+    # plt.subplt(2, 2, 2)
+    # plt.errorbar(lambda_cv_exp,
+    #              np.mean(mse, axis=(0, 2)),
+    #              np.mean(np.std(mse, axis=0), axis=-1) / np.sqrt(x.shape[0]))
+
+    # # Compute the TRF on each trial, then average across trials.
+    # trf_epochs = []
+    # for i_epoch in range(len(epochs)):
+    #     x_meg = x[i_epoch, meg_chan_inx, :].T
+    #     x_eog = x[i_epoch, eog_chan_inx, :].T
+    #     w, t, i = mtrf_train(stim=x_eog, # Array (time, param)
+    #                          resp=x_meg, # Array (time, chan)
+    #                          fs=epochs.info['sfreq'], # Sampling freq
+    #                          mapping_direction=1, # Forward model
+    #                          tmin=(tmin * 1000), # Min time in ms
+    #                          tmax=(tmax * 1000), # Max time in ms
+    #                          reg_lambda=1e0)
+    #     trf_epochs.append(w)
+    # trf_arr = np.stack(trf_epochs)
+    # trf_data = np.mean(trf_arr, axis=0)
+
+    # Compute TRF on all trials concatenated together.
+    # The results of this are almost exactly the same as the results for the
+    # trial-wise analysis, but it runs much faster, and the magnitude of the
+    # TRF is much higher.
+    x_conc = np.concatenate([trial for trial in x], axis=-1)
+    x_meg = x_conc[meg_chan_inx, :].T
+    x_eog = x_conc[eog_chan_inx, :].T
+    w, t, i = mtrf_train(stim=x_eog, # Array (time, param)
+                            resp=x_meg, # Array (time, chan)
+                            fs=epochs.info['sfreq'], # Sampling freq
+                            mapping_direction=1, # Forward model
+                            tmin=(tmin * 1000), # Min time in ms
+                            tmax=(tmax * 1000), # Max time in ms
+                            reg_lambda=1e0)
+    trf_data = w
 
     # Combine across HEOG and VEOG
-    trf_cmb = np.sqrt((w[0,...] ** 2) + (w[1,...] ** 2))
+    trf_x = np.sqrt((trf_data[0,...] ** 2) + (trf_data[1,...] ** 2))
+    trf_x = trf_data[0,...]
     
     # Convert the TRF to MNE format
     trf_info = epochs.info.copy()
     trf_info = mne.pick_info(trf_info,
                              mne.pick_types(epochs.info, meg=True, eog=False))
-    trf_evoked = mne.EvokedArray(trf_cmb.T, info=trf_info, tmin=tmin, comment='TRF')
+    trf_evoked = mne.EvokedArray(trf_x.T, info=trf_info, tmin=tmin, comment='TRF')
     trf_evoked.plot(spatial_colors=True)
 
+    return trf_evoked
 
 
 def trf_eyelink(n):
