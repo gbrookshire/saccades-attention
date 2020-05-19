@@ -164,7 +164,7 @@ def reconstruct_saccade(meg_data, ground_truth, times, alpha=3.57):
         # Standardize the data within each MEG channel
         x = scaler.fit_transform(x) 
         # Cross-validated classifiers
-        res = cross_validate(clf, x, x_change,
+        res = cross_validate(clf, x, ground_truth,
                              return_estimator=True,
                              **cv_params)
         # Store the results
