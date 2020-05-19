@@ -295,3 +295,40 @@ def trf_eyelink(n):
     trf_info = raw.info.copy()
     trf_info = mne.pick_info(trf_info, np.arange(len(raw.ch_names) - 1))
     trf = mne.EvokedArray(w[0,:,:].T, info=trf_info, tmin=tmin, comment='TRF')
+
+
+def trf_simulation():
+    """ Convolve random noise with a kernel, and reconstruct the kernel.
+    """
+    import numpy as np
+    import matplotlib.pyplot as plt
+    from pymtrf.mtrf import mtrf_train
+
+    plt.ion()
+
+    n = int(1e3)
+    fs = 100.0
+    x = np.random.normal(size=n)
+    kernel = np.zeros(41)
+    midpoint = int(kernel.size / 2)
+    kernel[midpoint-5:midpoint+5] = 1
+    y = np.convolve(x, kernel, mode='same')
+    y = y + np.random.normal(size=n)
+
+    plt.clf()
+    plt.subplot(2, 1, 1)
+    plt.plot(x, label='x')
+    plt.plot(y, label='x * kernel')
+    plt.legend()
+
+    plt.subplot(2, 1, 2)
+    w, t, i = mtrf_train(stim=np.reshape(x, [-1, 1]),
+                        resp=np.reshape(y, [-1, 1]), # array (time, chan)
+                        fs=fs, # Sampling freq
+                        mapping_direction=1, # Forward model
+                        tmin=-200, # Min time in ms
+                        tmax=200, # Max time in ms
+                        reg_lambda=1e0)
+    plt.plot(t, np.squeeze(w), label='TRF')
+    plt.plot(t, kernel, label='Kernel')
+    plt.legend()
