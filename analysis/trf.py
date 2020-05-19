@@ -90,13 +90,13 @@ def trf_eog_trialwise(n):
     # BP filter MEG activity
     raw.filter(l_freq=1, h_freq=40, # band-pass filter 
                picks=['meg'],
-               #method='fir', phase='minimum', # causal filter
+               method='fir', phase='minimum' # causal filter
                n_jobs=5)
 
     # LP Filter EOG activity
     raw.filter(l_freq=None, h_freq=40, # band-pass filter 
                picks=['eog'],
-               #method='fir', phase='minimum', # causal filter
+               method='fir', phase='minimum' # causal filter
                )
     
     # Segment into epochs
