@@ -13,10 +13,14 @@ import socket
 import json
 import numpy as np
 import pandas as pd
+import scipy
 import matplotlib.pyplot as plt
 import mne
+from mne.externals.h5io import write_hdf5, read_hdf5
 from pymtrf.mtrf import mtrf_predict, mtrf_crossval, mtrf_train, lag_gen
 import load_data
+
+plt.ion()
 
 expt_info = json.load(open('expt_info.json')) 
 
@@ -73,8 +77,15 @@ def simulation_test():
     plt.show()
 
 
-def trf_eog_trialwise(n):
+def trf_eog(n):
     """ Compute average TRF based on EOG for each trial (with multiple fixations).
+    No need to take spatial derivative -- the TRF already accounts for
+    autocorrelation in the EOG signals.
+
+    TODO
+    - absolute value of derivative of EOG
+        - instead of modeling direction, just model saccade onsets
+
     """
 
     d = load_data.load_data(n)
@@ -84,24 +95,16 @@ def trf_eog_trialwise(n):
     # Only keep some channels
     raw.pick_types(meg=True, eog=True, exclude='bads')
     
-    # Reject artifacts using ICA
-    d['ica'].apply(raw) 
+    # # Reject artifacts using ICA
+    # # !!! This obscures eye movements and changes the topographies, making it
+    # harder to tell what activity is directly related to moving the eyes.
+    # d['ica'].apply(raw) 
     
-    # BP filter MEG activity
-    raw.filter(l_freq=1, h_freq=40, # band-pass filter 
-               picks=['meg'],
-               method='fir', phase='minimum' # causal filter
-               n_jobs=5)
-
-    # LP Filter EOG activity
-    raw.filter(l_freq=None, h_freq=40, # band-pass filter 
-               picks=['eog'],
-               method='fir', phase='minimum' # causal filter
-               )
-
-    # Take the temporal derivative of EOG to look at changes in eye pos
-    raw.apply_function(fun=np.gradient,
-                       picks=['eog'])
+    # LP filter MEG and EOG
+    raw.filter(l_freq=None, h_freq=40,
+               picks=['meg', 'eog'],
+               n_jobs=5,
+               method='fir', phase='minimum') # causal filter
     
     # Segment into epochs
     epochs = mne.Epochs(raw,
@@ -109,11 +112,11 @@ def trf_eog_trialwise(n):
                         event_id=expt_info['event_dict']['explore'],
                         tmin=0.5,
                         tmax=4.5,
-                        baseline=None, #(None, 0),
-                        detrend=1, # Linear detrending
-                        reject_by_annotation=True, #FIXME How can we reject artifacts?
+                        baseline=None,
+                        detrend=None,
+                        reject_by_annotation=True, # Reject trials with arts
                         preload=True,
-                        proj=True) # Should this be False after running ICA?
+                        proj=True)
     raw.close()
     
     # Resample after epoching to make sure trigger times are correct
@@ -126,8 +129,12 @@ def trf_eog_trialwise(n):
     eog_chan_inx = mne.pick_types(epochs.info, meg=False, eog=True)
     meg_chan_inx = mne.pick_types(epochs.info, meg=True, eog=False)
 
-    # # Run cross-validation to find the optimal lambda parameter
-    # # Cross-validate for the time that's expected to show the strongest response
+    # # Run cross-validation to find the optimal lambda parameter.
+    # # Cross-validate for the time that's expected to show the strongest
+    # # response. In Crosse et al 2016, they average r values over channels "such
+    # # that model performance would be optimized in a more global manner." But
+    # # they say: "Alternatively, one could average across only channels within a
+    # # specified top percentile or based on a specific location."
     # x_meg_cv = np.swapaxes(x[:, meg_chan_inx, :], 1, 2) # (trial, time, chan)
     # x_eog_cv = np.swapaxes(x[:, eog_chan_inx, :], 1, 2) # (trial, time, chan)
     # lambda_cv_exp = np.linspace(-10, 10, 5)
@@ -142,159 +149,294 @@ def trf_eog_trialwise(n):
     # # Shape of r, p, mse:  (trial, lambda, channel)
     # # Shape of pred: list (1 elem for each trial) of arrays (lambda, ???, channel)
     # # model.shape : (trial, lambda, lag, target (?), feature)
-    # best_chan = np.unravel_index(np.argmax(r), r.shape)
     # plt.subplot(2, 2, 1)
     # plt.title('CV accuracy')
     # plt.errorbar(lambda_cv_exp,
-    #              np.mean(r, axis=(0, 2)),
+    #              np.mean(r, axis=(0, 2)), # Average over trials and channels
     #              np.mean(np.std(r, axis=0), axis=-1) / np.sqrt(x.shape[0]))
     # plt.xlabel('Regularization ($10 ^ \lambda$)')
     # plt.ylabel('Correlation')
-    # plt.subplt(2, 2, 2)
+    # plt.subplot(2, 2, 2)
+    # plt.title('MSE')
     # plt.errorbar(lambda_cv_exp,
     #              np.mean(mse, axis=(0, 2)),
     #              np.mean(np.std(mse, axis=0), axis=-1) / np.sqrt(x.shape[0]))
+    # plt.xlabel('Regularization ($10 ^ \lambda$)')
+    # plt.ylabel('MSE')
 
-    # # Compute the TRF on each trial, then average across trials.
-    # trf_epochs = []
-    # for i_epoch in range(len(epochs)):
-    #     x_meg = x[i_epoch, meg_chan_inx, :].T
-    #     x_eog = x[i_epoch, eog_chan_inx, :].T
-    #     w, t, i = mtrf_train(stim=x_eog, # Array (time, param)
-    #                          resp=x_meg, # Array (time, chan)
-    #                          fs=epochs.info['sfreq'], # Sampling freq
-    #                          mapping_direction=1, # Forward model
-    #                          tmin=(tmin * 1000), # Min time in ms
-    #                          tmax=(tmax * 1000), # Max time in ms
-    #                          reg_lambda=1e0)
-    #     trf_epochs.append(w)
-    # trf_arr = np.stack(trf_epochs)
-    # trf_data = np.mean(trf_arr, axis=0)
 
-    # Compute TRF on all trials concatenated together.
-    # The results of this are almost exactly the same as the results for the
-    # trial-wise analysis, but it runs much faster, and the magnitude of the
-    # TRF is much higher.
-    x_conc = np.concatenate([trial for trial in x], axis=-1)
-    x_meg = x_conc[meg_chan_inx, :].T
-    x_eog = x_conc[eog_chan_inx, :].T
-    w, t, i = mtrf_train(stim=x_eog, # Array (time, param)
-                            resp=x_meg, # Array (time, chan)
-                            fs=epochs.info['sfreq'], # Sampling freq
-                            mapping_direction=1, # Forward model
-                            tmin=(tmin * 1000), # Min time in ms
-                            tmax=(tmax * 1000), # Max time in ms
-                            reg_lambda=1e0)
-    trf_data = w
+    # Compute TRF on each trial, or on concatenated data? They say: "Both of
+    # these approaches yield the same results because the data are modeled
+    # using a linear assumption" (ignoring artifacts between trials). But I did
+    # find very slight differences. Those might be due to discontinuities where
+    # trials are concatenated. Also, the parameter estimates are drastically
+    # different in magnitude. Cross-validation is easier on trial-wise data
 
-    # Combine across HEOG and VEOG
-    trf_x = np.sqrt((trf_data[0,...] ** 2) + (trf_data[1,...] ** 2))
-    trf_x = trf_data[0,...]
-    
-    # Convert the TRF to MNE format
+    # Compute the TRF on each trial, then average across trials.
+    trf_epochs = []
+    for i_epoch in range(len(epochs)):
+        x_meg = x[i_epoch, meg_chan_inx, :].T
+        x_eog = x[i_epoch, eog_chan_inx, :].T
+        w, t, i = mtrf_train(stim=x_eog, # Array (time, param)
+                             resp=x_meg, # Array (time, chan)
+                             fs=epochs.info['sfreq'], # Sampling freq
+                             mapping_direction=1, # Forward model
+                             tmin=(tmin * 1000), # Min time in ms
+                             tmax=(tmax * 1000), # Max time in ms
+                             reg_lambda=1e-10)
+        trf_epochs.append(w)
+    trf_arr = np.stack(trf_epochs)
+    trf_data = np.mean(trf_arr, axis=0)
+
+    # # Compute TRF on all trials concatenated together.
+    # # The results of this are almost exactly the same as the results for the
+    # # trial-wise analysis, but it runs much faster, and the magnitude of the
+    # # TRF is much higher.
+    # x_conc = np.concatenate([trial for trial in x], axis=-1)
+    # x_meg = x_conc[meg_chan_inx, :].T
+    # x_eog = x_conc[eog_chan_inx, :].T
+    # w, t, i = mtrf_train(stim=x_eog, # Array (time, param)
+    #                         resp=x_meg, # Array (time, chan)
+    #                         fs=epochs.info['sfreq'], # Sampling freq
+    #                         mapping_direction=1, # Forward model
+    #                         tmin=(tmin * 1000), # Min time in ms
+    #                         tmax=(tmax * 1000), # Max time in ms
+    #                         reg_lambda=1e0)
+    # # When computing TRFs on concatenated data, the choice of lambda doesn't
+    # make a big difference. Lower values mean less regularization, so that
+    # might be a safer choice.
+    # trf_data = w
+
+    # Convert the TRF to MNE format and save it
     trf_info = epochs.info.copy()
     trf_info = mne.pick_info(trf_info,
                              mne.pick_types(epochs.info, meg=True, eog=False))
-    trf_evoked = mne.EvokedArray(trf_x.T, info=trf_info, tmin=tmin, comment='TRF')
-    trf_evoked.plot(spatial_colors=True)
+    for eog_direction in (0, 1):
+        trf_evoked = mne.EvokedArray(trf_data[eog_dir, ...].T,
+                                     info=trf_info,
+                                     tmin=tmin,
+                                     comment='TRF')
+        fname = f"{data_dir}trf/eog/{n}_{eog_direction}-ave.fif"
+        trf_evoked.save(fname)
 
-    return trf_evoked
+    # Load them with: x = mne.Evoked(f"{data_dir}trf/{n}_{eog_dir}-ave.fif")
+    # Then plot with: x.plot(spatial_colors=True)
+
+
+def trf_plot(n, analysis_type='eyelink'):
+    eog_direction = 1 # Horizontal EOG
+    x = mne.Evoked(f"{data_dir}trf/{analysis_type}/{n}_{eog_direction}-ave.fif")
+    x.plot(spatial_colors=True)
+
+
+def trf_avg(analysis_type='eyelink'):
+    """ Average over TRFs"""
+
+    all_trfs = [mne.Evoked(f"{data_dir}trf/{analysis_type}/{n}_1-ave.fif")
+                    for n in (2,3,4,5,6)]
+    if analysis_type == 'eog':
+        # For some TRFs, the polarity is reversed. Flip them so they all have the
+        # same sign.
+        weights = (1, -1, -1, 1, 1)
+    elif analysis_type == 'eyelink':
+        weights = (1, 1, 1, 1, 1)
+    avg_trf = mne.combine_evoked(all_trfs, weights=weights)
+    avg_trf.plot(spatial_colors=True)
 
 
 def trf_eyelink(n):
-    """ Compute the TRF based on Eyelink events
-        (Not working yet)
+    """ TRF between MEG and eye-tracker output
+    To-do
+    - interpolate between blinks
+    - parameter for blink onset
+    - absolute value of derivative of eye movement
     """
-    # Load the data
-    d = load_data.load_data(n)
-    raw = d['raw']
+    subject_info = pd.read_csv(data_dir + 'subject_info.csv',
+                            engine='python', sep=',')
+    subj_fname = subject_info['meg'][n]
+    raw = mne.io.read_raw_fif(load_data.meg_filename(subj_fname))
     raw.load_data()
 
-    # Select fixation offsets -- i.e. saccade onsets
-    row_sel = d['fix_events'][:,2] == expt_info['event_dict']['fix_off']
-    events = d['fix_events'][row_sel, :] 
+    eyelink_chans = ['MISC001', 'MISC002', 'MISC003']
+    eyes_raw = raw.copy()
+    eyes_raw.pick_channels(eyelink_chans)
 
-    # Get the feature to reconstruct: the direction of the next saccade
-    # Check the timing between fixations to make sure
-    # that the next item on the list is actually the next fixation.
-    fix = d['fix_info'].copy()
-    onsets = fix['start'][1:].to_numpy()
-    offsets = fix['end'][:-1].to_numpy()
-    saccade_dur = onsets - offsets
-    saccade_dur = saccade_dur / 1000
-    saccade_dur = np.hstack((saccade_dur, np.inf))
-    plausible_saccade = saccade_dur < 0.15
-    x_change = fix['x_avg'][1:].to_numpy() - fix['x_avg'][:-1].to_numpy()
-    x_change = np.hstack((x_change, np.nan))
-    y_change = fix['y_avg'][1:].to_numpy() - fix['y_avg'][:-1].to_numpy()
-    y_change = np.hstack((y_change, np.nan))
-    fix['x_change'] = pd.Series(x_change, index=fix.index)
-    fix['saccade_dur'] = pd.Series(saccade_dur, index=fix.index)
-    fix['saccade'] = pd.Series(plausible_saccade, index=fix.index)
-    fix['y_change'] = pd.Series(y_change, index=fix.index)
-    # Only keep events that are plausible saccades
-    events = events[fix['saccade']] 
-    fix = fix.loc[fix['saccade']]
-    # Only keep saccade events that fall within the recording
-    within_rec = events[:,0] < raw.times.size
-    events = events[within_rec, :]
-    fix = fix.loc[within_rec]
-    
-    # Only keep some channels
-    raw.pick_types(meg=True, eeg=False, eog=False, stim=False, exclude='bads')
+    # Add a channel for blinks
+    blinks_raw = identify_blinks(eyes_raw, 100)
+    eyes_raw.add_channels([blinks_raw], force_update_info=True)
 
-    # Reject artifacts using ICA
-    d['ica'].apply(raw) 
+    # Interpolate eye position over blinks
+    eyes_clean = interpolate_over_blinks(eyes_raw)
 
-    # LP filter
-    raw.filter(l_freq=1, h_freq=40, # band-pass filter 
-               method='fir', phase='minimum', # causal filter
-               n_jobs=5)
+    # Combine interpolated eye channels with raw data
+    raw.drop_channels(eyelink_chans)
+    raw.add_channels([eyes_clean], force_update_info=True)
 
-    # Build the saccade timecourse to fit with the model
-    saccade_onsets = np.zeros(raw.times.size) 
-    saccade_onsets[events[:,0]] = 1
+    # LP filter MEG
+    raw.filter(l_freq=None, h_freq=40,
+               picks=['meg'],
+               n_jobs=5,
+               method='fir', phase='minimum') # causal filter
 
-    # Add the saccades as a channel and downsample
-    y = np.reshape(saccade_onsets, [1, -1])
-    y_info = mne.create_info(['y'], raw.info['sfreq'], ['stim'])
-    y_raw = mne.io.RawArray(y, y_info)
-    raw.add_channels([y_raw], force_update_info=True)
-    # Resample after epoching to make sure trigger times are correct
-    raw.resample(100, n_jobs=5)
+    # Make epochs
+    meg_events = mne.find_events(raw, # Segment out the MEG events
+                                 stim_channel='STI101',
+                                 mask=0b00111111, # Ignore Nata button triggers
+                                 shortest_event=1)
+    # Segment into epochs
+    epochs = mne.Epochs(raw,
+                        events=meg_events,
+                        event_id=expt_info['event_dict']['explore'],
+                        picks=['meg', 'misc'],
+                        tmin=0.5,
+                        tmax=4.5,
+                        baseline=None,
+                        detrend=None,
+                        reject_by_annotation=True, # Reject trials with arts
+                        preload=True,
+                        proj=True)
 
-    # FIXME Replace artifact segments with NaNs
-    # Alternatively, just delete triggers that appear in a trial marked as bad
+    # Downsample the data
+    epochs.resample(100, n_jobs=5)
 
-    # Get the data
-    x = raw.get_data().T
-    y = np.reshape(x[:, -1], [-1, 1])
-    x = x[:, :-1]
-
-    # TODO figure out how to do multivariate predictors
-    #   saccade direction
-    #   saccade distance
-    #   x vs y direction separately
-    #   saccade angle
-
-
-
-    # Compute the TFR
+    # Get the data. (epoch, channel, time)
+    x = epochs.get_data()
     tmin = -0.5
     tmax = 0.5
-    w, t, i = mtrf_train(stim=y,
-                         resp=x, # array (time, chan)
-                         fs=raw.info['sfreq'], # Sampling freq
-                         mapping_direction=1, # Forward model
-                         tmin=(tmin * 1000), # Min time in ms
-                         tmax=(tmax * 1000), # Max time in ms
-                         reg_lambda=5e3)
- 
+    eye_chan_inx = mne.pick_channels(epochs.ch_names,
+                                     ('MISC001', 'MISC002', 'blink'))
+    meg_chan_inx = mne.pick_types(epochs.info, meg=True, misc=False)
 
-    # Convert the TRF to MNE format
-    trf_info = raw.info.copy()
-    trf_info = mne.pick_info(trf_info, np.arange(len(raw.ch_names) - 1))
-    trf = mne.EvokedArray(w[0,:,:].T, info=trf_info, tmin=tmin, comment='TRF')
+    # Compute the TRF on each trial, then average across trials.
+    trf_epochs = []
+    for i_epoch in range(len(epochs)):
+        x_meg = x[i_epoch, meg_chan_inx, :].T
+        x_eye = x[i_epoch, eye_chan_inx, :].T
+        w, t, i = mtrf_train(stim=x_eye, # Array (time, param)
+                             resp=x_meg, # Array (time, chan)
+                             fs=epochs.info['sfreq'], # Sampling freq
+                             mapping_direction=1, # Forward model
+                             tmin=(tmin * 1000), # Min time in ms
+                             tmax=(tmax * 1000), # Max time in ms
+                             reg_lambda=1e0)
+        trf_epochs.append(w)
+    trf_arr = np.stack(trf_epochs)
+    trf_data = np.mean(trf_arr, axis=0)
+
+    # Convert the TRF to MNE format and save it
+    trf_info = epochs.info.copy()
+    trf_info = mne.pick_info(trf_info,
+                             mne.pick_types(epochs.info, meg=True, eog=False))
+    for eog_direction in trf_data.size[0]:
+        trf_evoked = mne.EvokedArray(trf_data[eog_direction, ...].T,
+                                     info=trf_info,
+                                     tmin=tmin,
+                                     comment='TRF')
+        fname = f"{data_dir}trf/eyelink/{n}_{eog_direction}-ave.fif"
+        trf_evoked.save(fname)
+
+
+def identify_blinks(raw, blink_padding=20):
+    """
+    Find time-points when the subject is blinking. Outputs an mne.Raw objects
+    with a channel called "blink". This channel is 0 when the subject is not
+    blinking, and 1 when the subject is blinking.
+
+    When the eye is not found, the pupil channel MISC003 < -4.5.
+
+    Parameters
+    ----------
+
+    raw : mne.Raw
+        Raw data object
+
+    blink_padding : int
+        How much padding to add on either side of each blink (in samples)
+
+
+    Returns
+    -------
+
+    blinks_raw : mne.Raw
+        Data structure holding a channel showing where blinks occur.
+    """
+
+    # Get the pupil data
+    pupil_raw = raw.copy()
+    pupil_raw.load_data()
+    pupil_raw.pick_channels(['MISC003'])
+    x_pupil = pupil_raw.get_data()[0,:]
+
+    # Check for blinks by seeing when the pupil is missing.
+    blink = x_pupil < -4.5
+
+    # Find small blinks that aren't caught above
+    x_pupil[blink] = np.nan
+    stdize = lambda a: (a - np.nanmean(a)) / np.nanstd(a)
+    almost_blink = stdize(x_pupil) < -2.5
+
+    # Combine blinks and other anomalies
+    blink = blink | almost_blink
+
+    # This misses the beginnings/endings of blinks. Extend it to either side.
+    blink_labels = scipy.ndimage.label(blink)[0]
+    blink_slices = scipy.ndimage.find_objects(blink_labels)
+    blink_timecourse = np.zeros(x_pupil.shape)
+    for sl in blink_slices:
+        padded_slice = slice(sl[0].start - blink_padding,
+                             sl[0].stop + blink_padding)
+        blink_timecourse[padded_slice] = 1
+
+    # Make it into an mne.Raw object
+    blink_info = mne.create_info(['blink'], raw.info['sfreq'], ['misc'])
+    blink_raw = mne.io.RawArray(np.reshape(blink_timecourse, [1, -1]),
+                                blink_info)
+    return blink_raw
+
+
+def interpolate_over_blinks(raw):
+    """
+    Take time-points where subjects are blinking, and interpolate eye-tracker
+    channels over those points.
+
+    Parameters
+    ----------
+
+    raw : mne.Raw
+        Raw data object containing eye-tracker channels (MISC001-3) and a
+        channel called 'blink' from the function `identify_blinks`.
+
+
+    Returns
+    -------
+
+    raw_clean : mne.Raw
+        Raw data with eye-tracker chans interpolated over blinks.
+    """
+
+    assert 'blink' in raw.ch_names, 'Input `raw` must have a channel "blink"'
+    x = raw.get_data()
+    blink_inx = raw.ch_names.index('blink')
+    blink = x[blink_inx, :]
+    blink_labels = scipy.ndimage.label(blink)
+    blink_slices = scipy.ndimage.find_objects(blink_labels[0])
+    x_clean = x.copy()
+    for chan in ('MISC001', 'MISC002', 'MISC003'):
+        try:
+            chan_inx = raw.ch_names.index(chan)
+        except ValueError:
+            continue
+
+        for sl in blink_slices[:-1]:
+            start = sl[0].start
+            stop = sl[0].stop
+            connector = np.linspace(x[chan_inx, start],
+                                    x[chan_inx, stop],
+                                    stop - start)
+            x_clean[chan_inx, sl[0]] = connector
+
+    raw_clean = mne.io.RawArray(x_clean, raw.info, raw.first_samp)
+    return raw_clean
 
 
 def trf_simulation():
