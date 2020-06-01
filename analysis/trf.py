@@ -223,16 +223,16 @@ def trf_eog(n):
     # Then plot with: x.plot(spatial_colors=True)
 
 
-def trf_plot(n, analysis_type='eyelink'):
-    eog_direction = 1 # Horizontal EOG
-    x = mne.Evoked(f"{data_dir}trf/{analysis_type}/{n}_{eog_direction}-ave.fif")
+def trf_plot(n, param_number=1, analysis_type='eyelink'):
+    x = mne.Evoked(f"{data_dir}trf/{analysis_type}/{n}_{param_number}-ave.fif")
     x.plot(spatial_colors=True)
 
 
-def trf_avg(analysis_type='eyelink'):
+def trf_avg(param_number=1, analysis_type='eyelink'):
     """ Average over TRFs"""
 
-    all_trfs = [mne.Evoked(f"{data_dir}trf/{analysis_type}/{n}_1-ave.fif")
+    save_dir = f"{data_dir}trf/{analysis_type}"
+    all_trfs = [mne.Evoked(f"{save_dir}/{n}_{param_number}-ave.fif")
                     for n in (2,3,4,5,6)]
     if analysis_type == 'eog':
         # For some TRFs, the polarity is reversed. Flip them so they all have the
@@ -327,7 +327,7 @@ def trf_eyelink(n):
     trf_info = epochs.info.copy()
     trf_info = mne.pick_info(trf_info,
                              mne.pick_types(epochs.info, meg=True, eog=False))
-    for eog_direction in trf_data.size[0]:
+    for eog_direction in range(trf_data.shape[0]):
         trf_evoked = mne.EvokedArray(trf_data[eog_direction, ...].T,
                                      info=trf_info,
                                      tmin=tmin,
