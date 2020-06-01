@@ -301,6 +301,13 @@ def trf_eyelink(n):
 
     # Get the data. (epoch, channel, time)
     x = epochs.get_data()
+
+    # Model blinks as an impulse response instead of a sustained offset
+    blink_inx = mne.pick_channels(epochs.ch_names, ('blink',))
+    x_blink = x[:,blink_inx,:]
+    x_blink = (np.diff(x_blink, prepend=0) > 0.5).astype(int)
+    x[:,blink_inx,:] = x_blink
+
     tmin = -0.5
     tmax = 0.5
     eye_chan_inx = mne.pick_channels(epochs.ch_names,
